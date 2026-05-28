@@ -14,134 +14,37 @@ export const Route = createFileRoute("/admin/admissions")({
 });
 
 // ─────────────────────────────────────────────────────────────
-// MOCK DATA
-// ─────────────────────────────────────────────────────────────
-
-const MOCK_APPLICATIONS: AdmissionApplication[] = [
-  {
-    id: "app_001",
-    studentName: "Arjun Patel",
-    fatherName: "Rajesh Patel",
-    motherName: "Priya Patel",
-    dateOfBirth: "2010-05-15",
-    gender: "Male",
-    email: "arjun.p@example.com",
-    phone: "9876543210",
-    currentSchool: "Central High School",
-    currentGrade: "9",
-    applyingForGrade: "10",
-    address: "123 Oak Street",
-    city: "Mumbai",
-    state: "Maharashtra",
-    pincode: "400001",
-    applicationStatus: "Under Review",
-    appliedAt: "2026-05-20T10:30:00Z",
-    reviewedAt: "2026-05-22T14:00:00Z",
-    reviewedBy: "admin@school.com",
-    documents: [
-      {
-        id: "doc_001",
-        documentType: "Birth Certificate",
-        fileName: "birth_cert.pdf",
-        fileUrl: "/uploads/doc_001.pdf",
-        uploadedAt: "2026-05-20T10:35:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "admin@school.com",
-        verifiedAt: "2026-05-21T09:00:00Z",
-      },
-      {
-        id: "doc_002",
-        documentType: "Previous Marksheet",
-        fileName: "class9_marksheet.pdf",
-        fileUrl: "/uploads/doc_002.pdf",
-        uploadedAt: "2026-05-20T10:35:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "admin@school.com",
-        verifiedAt: "2026-05-21T09:15:00Z",
-      },
-      {
-        id: "doc_003",
-        documentType: "Photo",
-        fileName: "passport_photo.jpg",
-        fileUrl: "/uploads/doc_003.jpg",
-        uploadedAt: "2026-05-20T10:35:00Z",
-        verificationStatus: "Pending",
-      },
-    ],
-    admissionFeeStatus: "Pending",
-    admissionFeeAmount: 5000,
-    notes: "Good academic record. Need to verify photo quality.",
-    parentEmail: "rajesh.p@example.com",
-    parentPhone: "9876543209",
-    createdAt: "2026-05-20T10:30:00Z",
-    updatedAt: "2026-05-22T14:00:00Z",
-  },
-  {
-    id: "app_002",
-    studentName: "Divya Sharma",
-    fatherName: "Vikram Sharma",
-    motherName: "Neha Sharma",
-    dateOfBirth: "2009-08-22",
-    gender: "Female",
-    email: "divya.s@example.com",
-    phone: "8765432109",
-    currentSchool: "St. Paul's Academy",
-    currentGrade: "10",
-    applyingForGrade: "11",
-    address: "456 Maple Lane",
-    city: "Delhi",
-    state: "Delhi",
-    pincode: "110001",
-    applicationStatus: "Approved",
-    appliedAt: "2026-05-18T11:00:00Z",
-    reviewedAt: "2026-05-20T15:30:00Z",
-    reviewedBy: "admin@school.com",
-    documents: [
-      {
-        id: "doc_004",
-        documentType: "Birth Certificate",
-        fileName: "birth_cert_divya.pdf",
-        fileUrl: "/uploads/doc_004.pdf",
-        uploadedAt: "2026-05-18T11:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "admin@school.com",
-        verifiedAt: "2026-05-19T08:00:00Z",
-      },
-      {
-        id: "doc_005",
-        documentType: "Previous Marksheet",
-        fileName: "class10_marksheet.pdf",
-        fileUrl: "/uploads/doc_005.pdf",
-        uploadedAt: "2026-05-18T11:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "admin@school.com",
-        verifiedAt: "2026-05-19T08:15:00Z",
-      },
-    ],
-    admissionFeeStatus: "Paid",
-    admissionFeeAmount: 5000,
-    notes: "Excellent student. Scholarship eligible.",
-    parentEmail: "vikram.s@example.com",
-    parentPhone: "8765432108",
-    createdAt: "2026-05-18T11:00:00Z",
-    updatedAt: "2026-05-20T15:30:00Z",
-  },
-];
-
-// ─────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
+
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 
 function AdminAdmissionsPage() {
   const [view, setView] = useState<"list" | "details" | "new">("list");
   const [selectedApp, setSelectedApp] = useState<AdmissionApplication | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [applications, setApplications] = useState<any[]>([]);
 
-  const filteredApps = MOCK_APPLICATIONS.filter((app) => {
+  const fetchApplications = async () => {
+    try {
+      const res = await apiClient<any>("/admissions");
+      setApplications(res?.data || []);
+    } catch (err) {
+      toast.error("Failed to load applications");
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const filteredApps = applications.filter((app) => {
     const matchesSearch =
-      app.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.email.toLowerCase().includes(searchQuery.toLowerCase());
+      app.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      app.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || app.applicationStatus === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -195,7 +98,7 @@ function AdminAdmissionsPage() {
           <div className="grid gap-4">
             {filteredApps.map((app) => (
               <Panel
-                key={app.id}
+                key={app._id || app.id}
                 className="cursor-pointer transition hover:border-primary/50"
                 onClick={() => {
                   setSelectedApp(app);

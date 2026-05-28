@@ -3,14 +3,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, Upload, CheckCircle, Clock } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
 import { DEMO_STUDENT_ID } from "@/lib/demo-ids";
 import { fetchHomeworkItems, submitHomeworkAssignment } from "@/lib/homework-api";
 
 export const Route = createFileRoute("/student/assignments")({ component: Page });
 
 function Page() {
-  const { store } = useStore();
   const [apiAssignments, setApiAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,9 +31,7 @@ function Page() {
     };
   }, []);
 
-  const myAssignments = apiAssignments.length
-    ? apiAssignments
-    : store.assignments.filter((a) => a.grade === "10");
+  const myAssignments = apiAssignments;
 
   const handleSubmit = async (assignmentId: string) => {
     try {
@@ -46,6 +42,12 @@ function Page() {
         description: error instanceof Error ? error.message : "Please try again.",
       });
     }
+    
+    // Refresh list
+    try {
+      const items = await fetchHomeworkItems();
+      setApiAssignments(items || []);
+    } catch {}
   };
 
   return (

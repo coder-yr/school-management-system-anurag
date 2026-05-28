@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
@@ -52,8 +53,20 @@ const activity = [
 
 function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
+  const [stats, setStats] = useState({ students: 0, staff: 0 });
+
   useEffect(() => {
     setMounted(true);
+    
+    Promise.all([
+      apiClient<any>("/students?limit=1"),
+      apiClient<any>("/employees?limit=1")
+    ]).then(([studentRes, staffRes]) => {
+      setStats({
+        students: studentRes?.total || 0,
+        staff: staffRes?.total || 0
+      });
+    }).catch(console.error);
   }, []);
 
   return (
@@ -71,12 +84,12 @@ function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Students"
-          value="3,482"
-          delta="+128 this term"
+          value={stats.students.toString()}
+          delta="Enrolled"
           icon={GraduationCap}
           tone="info"
         />
-        <StatCard label="Total Staff" value="246" delta="12 new hires" icon={Users} />
+        <StatCard label="Total Staff" value={stats.staff.toString()} delta="Active" icon={Users} />
         <StatCard
           label="Fees Collected"
           value="₹2.84 Cr"

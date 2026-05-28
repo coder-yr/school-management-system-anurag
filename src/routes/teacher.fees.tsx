@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
   Search,
@@ -19,26 +19,28 @@ export const Route = createFileRoute("/teacher/fees")({
 });
 
 function Page() {
-  const { store } = useStore();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [allFees, setAllFees] = useState<any[]>([]);
 
-  // Mock grade for current teacher (Grade 10)
-  const teacherClass = "Grade 10";
+  useEffect(() => {
+    apiClient<any>("/fees")
+      .then((res) => setAllFees(res?.data || []))
+      .catch(() => {});
+  }, []);
 
-  // Filter records
-  const records = store.feeRecords.filter((r) => {
-    const matchesClass = r.grade === teacherClass;
-    const matchesSearch = r.studentName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || r.status === statusFilter;
-    return matchesClass && matchesSearch && matchesStatus;
+  const records = allFees.filter((r) => {
+    const studentName = `${r.student?.user?.firstName || ""} ${r.student?.user?.lastName || r.studentName || ""}`.toLowerCase();
+    const matchesSearch = studentName.includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "all" || r.status?.toLowerCase() === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   const totals = records.reduce(
-    (acc, curr) => {
-      acc.total += curr.amount;
-      acc.paid += curr.paid;
-      acc.due += curr.due;
+    (acc: any, curr: any) => {
+      acc.total += curr.amount || curr.totalAmount || 0;
+      acc.paid += curr.paidAmount || curr.paid || 0;
+      acc.due += curr.dueAmount || curr.due || 0;
       return acc;
     },
     { total: 0, paid: 0, due: 0 },
@@ -187,42 +189,51 @@ function Page() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {records.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="py-3.5 px-2 font-semibold text-foreground">{rec.studentName}</td>
-                    <td className="py-3.5 px-2 text-muted-foreground">{rec.category}</td>
-                    <td className="py-3.5 px-2 text-foreground font-medium">
-                      ₹{rec.amount.toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-2 text-[oklch(0.45_0.15_155)] font-medium">
-                      ₹{rec.paid.toLocaleString()}
-                    </td>
-                    <td
-                      className={`py-3.5 px-2 font-medium ${rec.due > 0 ? "text-destructive" : "text-muted-foreground"}`}
-                    >
-                      ₹{rec.due.toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-2 text-muted-foreground whitespace-nowrap">
-                      {rec.dueDate}
-                    </td>
-                    <td className="py-3.5 px-2">{getStatusBadge(rec.status)}</td>
-                    <td className="py-3.5 px-2 text-right">
-                      {rec.due > 0 ? (
-                        <button
-                          onClick={() => handleNudge(rec.studentName)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-all"
-                        >
-                          <Send className="h-3 w-3" />
-                          Remind
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground font-medium">
-                          No actions
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {records.map((rec: any) => {
+                  const studentName = `${rec.student?.user?.firstName || ""} ${rec.student?.user?.lastName || rec.studentName || ""}`.trim();
+                  const amount = rec.amount || rec.totalAmount || 0;
+                  const paid = rec.paidAmount || rec.paid || 0;
+                  const due = rec.dueAmount || rec.due || (amount - paid);
+                  const dueDate = rec.dueDate || rec.due_date || "—";
+                  const category = rec.feeType || rec.category || "Fee";
+                  const status = rec.status || (due > 0 ? "pending" : "paid");
+                  return (
+                    <tr key={rec._id || rec.id} className="hover:bg-muted/50 transition-colors">
+                      <td className="py-3.5 px-2 font-semibold text-foreground">{studentName}</td>
+                      <td className="py-3.5 px-2 text-muted-foreground">{category}</td>
+                      <td className="py-3.5 px-2 text-foreground font-medium">
+                        ₹{amount.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-2 text-[oklch(0.45_0.15_155)] font-medium">
+                        ₹{paid.toLocaleString()}
+                      </td>
+                      <td
+                        className={`py-3.5 px-2 font-medium ${due > 0 ? "text-destructive" : "text-muted-foreground"}`}
+                      >
+                        ₹{due.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-2 text-muted-foreground whitespace-nowrap">
+                        {new Date(dueDate).toLocaleDateString()}
+                      </td>
+                      <td className="py-3.5 px-2">{getStatusBadge(status.toLowerCase())}</td>
+                      <td className="py-3.5 px-2 text-right">
+                        {due > 0 ? (
+                          <button
+                            onClick={() => handleNudge(studentName)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-all"
+                          >
+                            <Send className="h-3 w-3" />
+                            Remind
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground font-medium">
+                            No actions
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

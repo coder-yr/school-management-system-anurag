@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/transport")({
   head: () => ({ meta: [{ title: "Transport · Campus OS" }] }),
@@ -23,7 +23,6 @@ export const Route = createFileRoute("/admin/transport")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"tracking" | "routes" | "fleet" | "geofencing">("tracking");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
@@ -109,12 +108,27 @@ function Page() {
     },
   ]);
 
+  const [routesData, setRoutesData] = useState<any[]>([]);
+
+  const fetchRoutes = async () => {
+    try {
+      const res = await apiClient<any>("/transport/routes");
+      setRoutesData(res?.data || []);
+    } catch (err) {
+      toast.error("Failed to fetch transport routes");
+    }
+  };
+
+  useEffect(() => {
+    fetchRoutes();
+  }, []);
+
   // Simulate GPS movement
   const [positions, setPositions] = useState<Record<string, { lat: number; lng: number }>>({});
   useEffect(() => {
     const initial: Record<string, { lat: number; lng: number }> = {};
-    store.busRoutes.forEach((r) => {
-      initial[r.id] = { lat: r.currentLat, lng: r.currentLng };
+    routesData.forEach((r) => {
+      initial[r.id] = { lat: r.current_lat || 18.52, lng: r.current_lng || 73.85 };
     });
     setPositions(initial);
     const interval = setInterval(() => {
@@ -130,9 +144,9 @@ function Page() {
       });
     }, 3000);
     return () => clearInterval(interval);
-  }, [store.busRoutes]);
+  }, [routesData]);
 
-  const totalStudents = store.busRoutes.reduce((a, r) => a + r.students, 0);
+  const totalStudents = routesData.reduce((a, r) => a + (r.student_count || 0), 0);
 
   return (
     <div>
@@ -143,7 +157,7 @@ function Page() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard
           label="Active Buses"
-          value={String(store.busRoutes.length)}
+          value={String(routesData.length)}
           icon={Bus}
           tone="info"
         />
@@ -153,7 +167,7 @@ function Page() {
           icon={Users}
           tone="success"
         />
-        <StatCard label="Routes" value={String(store.busRoutes.length)} icon={MapPin} />
+        <StatCard label="Routes" value={String(routesData.length)} icon={MapPin} />
         <StatCard
           label="Fleet Alert Status"
           value={String(fleet.filter((f) => f.status !== "healthy").length)}
@@ -194,8 +208,8 @@ function Page() {
                     backgroundSize: "20px 20px",
                   }}
                 />
-                {store.busRoutes.map((r) => {
-                  const pos = positions[r.id] || { lat: r.currentLat, lng: r.currentLng };
+                {routesData.map((r) => {
+                  const pos = positions[r.id] || { lat: r.current_lat || 18.52, lng: r.current_lng || 73.85 };
                   const x = ((pos.lng - 73.83) / 0.04) * 100;
                   const y = ((18.55 - pos.lat) / 0.04) * 100;
                   return (
@@ -212,13 +226,13 @@ function Page() {
                         className={`relative flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium shadow-lg ${selectedRoute === r.id ? "bg-accent text-accent-foreground scale-110" : "bg-card text-foreground border border-border"}`}
                       >
                         <Bus className="h-3.5 w-3.5" />
-                        {r.routeNo}
+                        {r.route_no}
                         <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-[oklch(0.65_0.15_155)] animate-pulse" />
                       </div>
                     </div>
                   );
                 })}
-                {store.busRoutes.length === 0 && (
+                {routesData.length === 0 && (
                   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                     No buses to track
                   </div>
@@ -227,7 +241,7 @@ function Page() {
             </Panel>
           </div>
           <div className="space-y-3">
-            {store.busRoutes.map((r) => (
+            {routesData.map((r) => (
               <div
                 key={r.id}
                 onClick={() => setSelectedRoute(r.id)}
@@ -238,22 +252,22 @@ function Page() {
                     <Bus className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="font-semibold">{r.routeNo}</div>
-                    <div className="text-xs text-muted-foreground">{r.busNo}</div>
+                    <div className="font-semibold">{r.route_no}</div>
+                    <div className="text-xs text-muted-foreground">{r.bus_no}</div>
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
                   <div className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
-                    {r.students}/{r.capacity} students
+                    {r.student_count || 0}/{r.capacity || 0} students
                   </div>
                   <div className="flex items-center gap-1">
                     <Phone className="h-3 w-3" />
-                    {r.driver} · {r.phone}
+                    {r.driver_name} · {r.driver_phone}
                   </div>
                 </div>
-                <div className="mt-2 flex gap-1">
-                  {r.stops.map((s, i) => (
+                <div className="mt-2 flex gap-1 flex-wrap">
+                  {r.stops?.map((s: any, i: number) => (
                     <span key={i} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
                       {s.name}
                     </span>
@@ -279,17 +293,17 @@ function Page() {
           }
         >
           <div className="space-y-4">
-            {store.busRoutes.map((r) => (
+            {routesData.map((r) => (
               <div key={r.id} className="rounded-lg border border-border p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="font-semibold">
-                    {r.routeNo} — {r.busNo}
+                    {r.route_no} — {r.bus_no}
                   </div>
-                  <div className="text-sm text-muted-foreground">{r.driver}</div>
+                  <div className="text-sm text-muted-foreground">{r.driver_name}</div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {r.stops.map((s, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {r.stops?.map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 shrink-0">
                       <div className="text-center">
                         <div className="h-3 w-3 rounded-full bg-accent mx-auto" />
                         <div className="text-[10px] mt-1 text-muted-foreground">{s.name}</div>
@@ -302,7 +316,7 @@ function Page() {
               </div>
             ))}
           </div>
-          {store.busRoutes.length === 0 && (
+          {routesData.length === 0 && (
             <EmptyState icon={Bus} title="No routes" description="Add a route to get started." />
           )}
         </Panel>
@@ -543,29 +557,33 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_BUS_ROUTE",
-                  payload: {
-                    id: genId(),
-                    routeNo: fd.get("route") as string,
-                    driver: fd.get("driver") as string,
-                    phone: fd.get("phone") as string,
-                    busNo: fd.get("bus") as string,
-                    capacity: Number(fd.get("capacity")),
-                    students: 0,
-                    currentLat: 18.52,
-                    currentLng: 73.85,
-                    stops: [
-                      { name: "Start", time: "07:30", lat: 18.52, lng: 73.85 },
-                      { name: "School", time: "08:20", lat: 18.545, lng: 73.835 },
-                    ],
-                  },
-                });
-                toast.success("Route added");
-                setShowAdd(false);
+                try {
+                  await apiClient("/transport/routes", {
+                    method: "POST",
+                    data: {
+                      routeNo: fd.get("route") as string,
+                      driverName: fd.get("driver") as string,
+                      driverPhone: fd.get("phone") as string,
+                      busNo: fd.get("bus") as string,
+                      capacity: Number(fd.get("capacity")),
+                      students: 0,
+                      currentLat: 18.52,
+                      currentLng: 73.85,
+                      stops: [
+                        { name: "Start", time: "07:30", lat: 18.52, lng: 73.85 },
+                        { name: "School", time: "08:20", lat: 18.545, lng: 73.835 },
+                      ],
+                    }
+                  });
+                  toast.success("Route added");
+                  setShowAdd(false);
+                  fetchRoutes();
+                } catch (err) {
+                  toast.error("Failed to add route");
+                }
               }}
               className="space-y-3"
             >

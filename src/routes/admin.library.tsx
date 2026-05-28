@@ -3,7 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { BookOpen, Plus, X, Search, ArrowDownUp, BookMarked, Clock } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/library")({
   head: () => ({ meta: [{ title: "Library · Campus OS" }] }),
@@ -11,19 +12,38 @@ export const Route = createFileRoute("/admin/library")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"dashboard" | "books" | "add">("dashboard");
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
 
-  const issued = store.bookCirculations.filter((c) => c.status === "issued").length;
-  const overdue = store.bookCirculations.filter((c) => c.status === "overdue").length;
-  const returned = store.bookCirculations.filter((c) => c.status === "returned").length;
-  const totalBooks = store.libraryBooks.reduce((a, b) => a + b.totalCopies, 0);
-  const filtered = store.libraryBooks.filter(
+  const [books, setBooks] = useState<any[]>([]);
+  const [circulations, setCirculations] = useState<any[]>([]);
+
+  const fetchData = async () => {
+    try {
+      const [bRes, cRes] = await Promise.all([
+        apiClient<any>("/library/books"),
+        apiClient<any>("/library/circulations"),
+      ]);
+      setBooks(bRes?.data || []);
+      setCirculations(cRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to fetch library data");
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const issued = circulations.filter((c) => c.status === "issued").length;
+  const overdue = circulations.filter((c) => c.status === "overdue").length;
+  const returned = circulations.filter((c) => c.status === "returned").length;
+  const totalBooks = books.reduce((a, b) => a + (b.total_copies || 0), 0);
+  const filtered = books.filter(
     (b) =>
-      b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.author.toLowerCase().includes(search.toLowerCase()),
+      b.title?.toLowerCase().includes(search.toLowerCase()) ||
+      b.author?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -68,15 +88,15 @@ function Page() {
       {tab === "dashboard" && (
         <Panel title="Active Circulations">
           <div className="space-y-3">
-            {store.bookCirculations.map((c) => (
+            {circulations.map((c) => (
               <div
                 key={c.id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-4"
               >
                 <div>
-                  <div className="font-medium text-sm">{c.bookTitle}</div>
+                  <div className="font-medium text-sm">{c.book_title}</div>
                   <div className="text-xs text-muted-foreground">
-                    {c.studentName} · Issued: {c.issuedDate} · Due: {c.dueDate}
+                    {c.student_name} · Issued: {new Date(c.issued_date).toLocaleDateString()} · Due: {new Date(c.due_date).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -87,18 +107,14 @@ function Page() {
                   </span>
                   {c.status !== "returned" && (
                     <button
-                      onClick={() => {
-                        dispatch({
-                          type: "UPDATE_CIRCULATION",
-                          payload: {
-                            id: c.id,
-                            updates: {
-                              status: "returned",
-                              returnedDate: new Date().toISOString().split("T")[0],
-                            },
-                          },
-                        });
-                        toast.success("Book returned", { description: c.bookTitle });
+                      onClick={async () => {
+                        try {
+                          await apiClient(`/library/circulations/${c.id}/return`, { method: "POST" });
+                          toast.success("Book returned", { description: c.book_title });
+                          fetchData();
+                        } catch (err) {
+                          toast.error("Failed to return book");
+                        }
                       }}
                       className="rounded-lg bg-[oklch(0.65_0.15_155)]/15 px-3 py-1.5 text-xs font-medium text-[oklch(0.45_0.15_155)] hover:bg-[oklch(0.65_0.15_155)]/25 transition-all active:scale-95"
                     >
@@ -109,7 +125,7 @@ function Page() {
               </div>
             ))}
           </div>
-          {store.bookCirculations.length === 0 && (
+          {circulations.length === 0 && (
             <EmptyState
               icon={BookOpen}
               title="No circulations"
@@ -151,10 +167,10 @@ function Page() {
                     <td className="py-3 pr-4">
                       <span
                         className={
-                          b.available > 0 ? "text-[oklch(0.45_0.15_155)]" : "text-destructive"
+                          (b.available_copies || 0) > 0 ? "text-[oklch(0.45_0.15_155)]" : "text-destructive"
                         }
                       >
-                        {b.available}/{b.totalCopies}
+                        {b.available_copies || 0}/{b.total_copies || 0}
                       </span>
                     </td>
                   </tr>
@@ -170,7 +186,7 @@ function Page() {
                   {b.author} · {b.category} · Shelf {b.shelf}
                 </div>
                 <div className="text-xs mt-1">
-                  Available: {b.available}/{b.totalCopies}
+                  Available: {b.available_copies || 0}/{b.total_copies || 0}
                 </div>
               </div>
             ))}
@@ -189,29 +205,33 @@ function Page() {
             ))}
           </div>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
               if (step < 3) {
                 setStep((s) => s + 1);
                 return;
               }
               const fd = new FormData(e.currentTarget);
-              dispatch({
-                type: "ADD_LIBRARY_BOOK",
-                payload: {
-                  id: genId(),
-                  title: fd.get("title") as string,
-                  author: fd.get("author") as string,
-                  isbn: fd.get("isbn") as string,
-                  category: fd.get("category") as string,
-                  totalCopies: Number(fd.get("copies")),
-                  available: Number(fd.get("copies")),
-                  shelf: fd.get("shelf") as string,
-                },
-              });
-              toast.success("Book added to catalog");
-              setStep(1);
-              setTab("books");
+              try {
+                await apiClient("/library/books", {
+                  method: "POST",
+                  data: {
+                    title: fd.get("title") as string,
+                    author: fd.get("author") as string,
+                    isbn: fd.get("isbn") as string,
+                    category: fd.get("category") as string,
+                    totalCopies: Number(fd.get("copies")),
+                    available: Number(fd.get("copies")),
+                    shelf: fd.get("shelf") as string,
+                  }
+                });
+                toast.success("Book added to catalog");
+                setStep(1);
+                setTab("books");
+                fetchData();
+              } catch (err) {
+                toast.error("Failed to add book");
+              }
             }}
             className="space-y-4"
           >

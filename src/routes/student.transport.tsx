@@ -2,14 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Bus, MapPin, Phone, Clock } from "lucide-react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/student/transport")({ component: Page });
 
 function Page() {
-  const { store } = useStore();
-  const myRoute = store.busRoutes[0];
+  const [myRoute, setMyRoute] = useState<any>(null);
   const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    apiClient<any>("/transport/routes")
+      .then((res) => {
+        const routes = res?.data || [];
+        if (routes.length) setMyRoute(routes[0]);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setProgress((p) => (p >= 100 ? 0 : p + 2)), 500);
@@ -33,7 +41,7 @@ function Page() {
 
   return (
     <div>
-      <PageHeader title="Bus Tracking" subtitle={`Route ${myRoute.routeNo} · ${myRoute.busNo}`} />
+      <PageHeader title="Bus Tracking" subtitle={`Route ${myRoute.routeNumber || myRoute.routeNo || ""} · ${myRoute.vehicleNumber || myRoute.busNo || ""}`} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
           <Panel title="Live Route Map">
@@ -46,8 +54,9 @@ function Page() {
                   backgroundSize: "24px 24px",
                 }}
               />
-              {myRoute.stops.map((s, i) => {
-                const x = 10 + (i / (myRoute.stops.length - 1)) * 80;
+              {(myRoute.stops || []).map((s: any, i: number) => {
+                const stopCount = (myRoute.stops || []).length;
+                const x = 10 + (i / Math.max(stopCount - 1, 1)) * 80;
                 const y = 30 + Math.sin(i * 1.2) * 20;
                 return (
                   <div key={i} className="absolute" style={{ left: `${x}%`, top: `${y}%` }}>
@@ -58,11 +67,11 @@ function Page() {
                         className={`h-4 w-4 rounded-full border-2 ${i <= currentStopIdx ? "bg-accent border-accent" : "bg-card border-border"}`}
                       />
                       <span className="text-[10px] font-medium mt-1 whitespace-nowrap">
-                        {s.name}
+                        {s.name || s.stopName}
                       </span>
-                      <span className="text-[9px] text-muted-foreground">{s.time}</span>
+                      <span className="text-[9px] text-muted-foreground">{s.time || s.arrivalTime}</span>
                     </div>
-                    {i < myRoute.stops.length - 1 && (
+                    {i < (myRoute.stops || []).length - 1 && (
                       <div className="absolute top-2 left-4 w-[calc(100%+40px)] h-0.5 bg-border" />
                     )}
                   </div>
@@ -95,13 +104,13 @@ function Page() {
               <div className="flex items-center gap-2">
                 <Bus className="h-4 w-4 text-accent" />
                 <span>
-                  {myRoute.busNo} · {myRoute.routeNo}
+                  {myRoute.vehicleNumber || myRoute.busNo} · {myRoute.routeNumber || myRoute.routeNo}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-accent" />
                 <span>
-                  {myRoute.driver} · {myRoute.phone}
+                  {myRoute.driverName || myRoute.driver} · {myRoute.driverPhone || myRoute.phone}
                 </span>
               </div>
               <div className="flex items-center gap-2">

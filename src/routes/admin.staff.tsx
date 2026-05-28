@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Search, Plus, Eye, X, Users } from "lucide-react";
+import { Search, Plus, Eye, X, Users, Loader2 } from "lucide-react";
 import { PageHeader, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/staff")({
   head: () => ({ meta: [{ title: "Staff · Campus OS" }] }),
@@ -11,15 +11,33 @@ export const Route = createFileRoute("/admin/staff")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
+  const [staff, setStaff] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
-  const [viewStaff, setViewStaff] = useState<(typeof store.staff)[0] | null>(null);
+  const [viewStaff, setViewStaff] = useState<any | null>(null);
 
-  const depts = [...new Set(store.staff.map((s) => s.department))].sort();
-  const filtered = store.staff.filter((s) => {
-    const m1 = s.name.toLowerCase().includes(search.toLowerCase());
+  const fetchStaff = async () => {
+    try {
+      setLoading(true);
+      const res: any = await apiClient("/employees");
+      setStaff(res?.data || []);
+    } catch (err) {
+      toast.error("Failed to load staff");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
+  const depts = [...new Set(staff.map((s) => s.department).filter(Boolean))].sort();
+  const filtered = staff.filter((s) => {
+    const fullName = `${s.user?.firstName || ""} ${s.user?.lastName || ""}`.toLowerCase();
+    const m1 = fullName.includes(search.toLowerCase());
     const m2 = deptFilter === "all" || s.department === deptFilter;
     return m1 && m2;
   });
@@ -28,7 +46,7 @@ function Page() {
     <div>
       <PageHeader
         title="Staff Directory"
-        subtitle={`${store.staff.length} staff members`}
+        subtitle={loading ? "Loading staff..." : `${staff.length} staff members`}
         actions={
           <button
             onClick={() => setShowAdd(true)}
@@ -75,27 +93,25 @@ function Page() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-border/50 last:border-0">
-                  <td className="py-3 pr-4 font-medium">{s.name}</td>
-                  <td className="py-3 pr-4 text-muted-foreground">{s.role}</td>
-                  <td className="py-3 pr-4">{s.department}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </td>
+                </tr>
+              ) : filtered.map((s) => (
+                <tr key={s._id} className="border-b border-border/50 last:border-0">
+                  <td className="py-3 pr-4 font-medium">{s.user?.firstName} {s.user?.lastName}</td>
+                  <td className="py-3 pr-4 text-muted-foreground">{s.designation}</td>
+                  <td className="py-3 pr-4">{s.department || "N/A"}</td>
                   <td className="py-3 pr-4">
-                    <span
-                      className={
-                        s.attendance >= 90
-                          ? "text-[oklch(0.45_0.15_155)]"
-                          : "text-[oklch(0.50_0.15_75)]"
-                      }
-                    >
-                      {s.attendance}%
-                    </span>
+                    <span className="text-[oklch(0.45_0.15_155)]">100%</span>
                   </td>
                   <td className="py-3 pr-4">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : s.status === "on-leave" ? "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]" : "bg-muted text-muted-foreground"}`}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.isActive ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-muted text-muted-foreground"}`}
                     >
-                      {s.status}
+                      {s.isActive ? "active" : "inactive"}
                     </span>
                   </td>
                   <td className="py-3">
@@ -122,20 +138,20 @@ function Page() {
       <div className="md:hidden space-y-3">
         {filtered.map((s) => (
           <div
-            key={s.id}
+            key={s._id}
             onClick={() => setViewStaff(s)}
             className="rounded-xl border border-border bg-card p-4 shadow-sm active:scale-[0.98] transition-all"
           >
             <div className="flex justify-between mb-1">
-              <span className="font-semibold">{s.name}</span>
+              <span className="font-semibold">{s.user?.firstName} {s.user?.lastName}</span>
               <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.status === "active" ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.isActive ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-muted text-muted-foreground"}`}
               >
-                {s.status}
+                {s.isActive ? "active" : "inactive"}
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {s.role} · {s.department} · {s.attendance}%
+              {s.designation} · {s.department || "N/A"} · 100%
             </div>
           </div>
         ))}
@@ -161,18 +177,18 @@ function Page() {
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               {[
-                ["Name", viewStaff.name],
-                ["Role", viewStaff.role],
-                ["Department", viewStaff.department],
-                ["Email", viewStaff.email],
-                ["Phone", viewStaff.phone],
-                ["Join Date", viewStaff.joinDate],
-                ["Salary", `₹${viewStaff.salary.toLocaleString()}`],
-                ["Attendance", `${viewStaff.attendance}%`],
+                ["Name", `${viewStaff.user?.firstName} ${viewStaff.user?.lastName}`],
+                ["Role", viewStaff.designation],
+                ["Department", viewStaff.department || "N/A"],
+                ["Email", viewStaff.user?.email || "N/A"],
+                ["Phone", viewStaff.phone || "N/A"],
+                ["Join Date", new Date(viewStaff.joiningDate).toLocaleDateString()],
+                ["Salary", `₹${(viewStaff.basicSalary || 0).toLocaleString()}`],
+                ["Status", viewStaff.isActive ? "Active" : "Inactive"],
               ].map(([l, v]) => (
                 <div key={l}>
                   <div className="text-xs text-muted-foreground uppercase tracking-wide">{l}</div>
-                  <div className="mt-1 font-medium">{v}</div>
+                  <div className="mt-1 font-medium">{v as React.ReactNode}</div>
                 </div>
               ))}
             </div>
@@ -185,70 +201,117 @@ function Page() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => setShowAdd(false)}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-xl max-h-[80vh] overflow-y-auto"
-          >
-            <div className="flex justify-between mb-4">
-              <h2 className="text-lg font-semibold">Add Staff Member</h2>
-              <button
-                onClick={() => setShowAdd(false)}
-                className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_STAFF",
-                  payload: {
-                    id: genId(),
-                    name: fd.get("name") as string,
-                    role: fd.get("role") as string,
-                    department: fd.get("department") as string,
-                    email: fd.get("email") as string,
-                    phone: fd.get("phone") as string,
-                    joinDate: new Date().toISOString().split("T")[0],
-                    salary: Number(fd.get("salary")),
-                    status: "active",
-                    attendance: 100,
-                  },
-                });
-                toast.success("Staff added");
-                setShowAdd(false);
-              }}
-              className="space-y-3"
-            >
-              {[
-                ["name", "Name"],
-                ["role", "Role"],
-                ["department", "Department"],
-                ["email", "Email"],
-                ["phone", "Phone"],
-                ["salary", "Salary"],
-              ].map(([k, l]) => (
-                <div key={k}>
-                  <label className="mb-1 block text-sm font-medium">{l}</label>
-                  <input
-                    name={k}
-                    required
-                    className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
-                  />
-                </div>
-              ))}
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all"
-              >
-                Add Staff
-              </button>
-            </form>
-          </div>
+          <AddStaffForm onClose={() => setShowAdd(false)} onRefresh={fetchStaff} />
         </div>
       )}
+    </div>
+  );
+}
+
+function AddStaffForm({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => void }) {
+  const [loading, setLoading] = useState(false);
+  
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-xl max-h-[80vh] overflow-y-auto"
+    >
+      <div className="flex justify-between mb-4">
+        <h2 className="text-lg font-semibold">Add Staff Member</h2>
+        <button
+          onClick={onClose}
+          className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          setLoading(true);
+          try {
+            await apiClient("/employees", {
+              method: "POST",
+              data: {
+                employeeId: `EMP-${Date.now()}`,
+                employeeType: fd.get("employeeType") as string,
+                designation: fd.get("designation") as string,
+                department: fd.get("department") as string,
+                joiningDate: new Date().toISOString(),
+                basicSalary: Number(fd.get("salary")),
+                user: {
+                  firstName: fd.get("firstName") as string,
+                  lastName: fd.get("lastName") as string,
+                  email: fd.get("email") as string,
+                  password: "password123",
+                  role: fd.get("role") as string,
+                }
+              }
+            });
+            toast.success("Staff added successfully");
+            onRefresh();
+            onClose();
+          } catch (error: any) {
+            toast.error(error.message || "Failed to add staff");
+          } finally {
+            setLoading(false);
+          }
+        }}
+        className="space-y-3"
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium">First Name</label>
+            <input name="firstName" required className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Last Name</label>
+            <input name="lastName" required className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none" />
+          </div>
+        </div>
+        {[
+          ["email", "Email", "email"],
+          ["designation", "Designation", "text"],
+          ["department", "Department", "text"],
+          ["salary", "Salary", "number"],
+        ].map(([k, l, t]) => (
+          <div key={k}>
+            <label className="mb-1 block text-sm font-medium">{l}</label>
+            <input
+              name={k}
+              type={t}
+              required
+              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+            />
+          </div>
+        ))}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium">System Role</label>
+            <select name="role" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
+              <option value="TEACHER">Teacher</option>
+              <option value="ACCOUNTANT">Accountant</option>
+              <option value="DRIVER">Driver</option>
+              <option value="SCHOOL_ADMIN">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Employee Type</label>
+            <select name="employeeType" className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm">
+              <option value="TEACHING">Teaching</option>
+              <option value="NON_TEACHING">Non-Teaching</option>
+            </select>
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full mt-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-50"
+        >
+          {loading ? "Adding..." : "Add Staff"}
+        </button>
+      </form>
     </div>
   );
 }

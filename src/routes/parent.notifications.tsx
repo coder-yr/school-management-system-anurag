@@ -13,7 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/parent/notifications")({
   component: ParentNotifications,
@@ -29,19 +29,16 @@ interface Ticket {
 }
 
 function ParentNotifications() {
-  const { store, dispatch } = useStore();
   const [activeChild, setActiveChild] = useState<"aarav" | "ananya">("aarav");
   const [showTicketModal, setShowTicketModal] = useState(false);
-  const [tickets, setTickets] = useState<Ticket[]>([
-    {
-      id: "TCK-551",
-      title: "Tuition installment discount correction",
-      category: "Billing & Fees",
-      description: "My sibling discount was not fully calculated in Aarav's fee schedule.",
-      status: "in-progress",
-      createdAt: "2026-05-18",
-    },
-  ]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [liveAnnouncements, setLiveAnnouncements] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiClient<any>("/notifications/announcements")
+      .then((res) => setLiveAnnouncements(res?.data || []))
+      .catch(() => {});
+  }, []);
 
   // Sync active child state
   useEffect(() => {
@@ -56,48 +53,48 @@ function ParentNotifications() {
 
   const activeChildName = activeChild === "aarav" ? "Aarav Sharma" : "Ananya Sharma";
 
-  // Mock Alerts Feed specific to parents/students
+  // Merge live + static alerts
   const alertsFeed = [
+    ...liveAnnouncements.slice(0, 3).map((a: any) => ({
+      id: a.id,
+      title: a.title,
+      body: a.content,
+      time: new Date(a.date).toLocaleDateString(),
+      type: "info" as const,
+    })),
     {
-      id: "al-1",
+      id: "al-static-1",
       title: "School Bus Delay: Route R-12",
       body: "Route R-12 is running 10 minutes late today due to heavy freeway traffic. Apologies for the inconvenience.",
       time: "20 min ago",
-      type: "warning",
-    },
-    {
-      id: "al-2",
-      title: "Vaccination Immunization Audit",
-      body: `Infirmary is auditing vaccination card logs for ${activeChildName}. Please verify details are complete on the portal.`,
-      time: "2 hours ago",
-      type: "info",
-    },
-    {
-      id: "al-3",
-      title: "Parent-Teacher Meeting May 22",
-      body: "PTM schedules are now open for grade HOD bookings. Select slots under academic oversight.",
-      time: "1 day ago",
-      type: "primary",
+      type: "warning" as const,
     },
   ];
 
-  // Notices board
-  const noticeBoard = [
-    {
-      title: "Campus Closure: Summer Vacation Term",
-      content:
-        "School campus operations will be suspended starting June 15 for the summer recess. Fall term reopens August 10.",
-      date: "May 14",
-      author: "Principal Menon",
-    },
-    {
-      title: "Annual Science Fair Participation",
-      content:
-        "Registrations are open for the junior scientist science fair projects. Contact science HOD Rao.",
-      date: "May 12",
-      author: "Academic Dean",
-    },
-  ];
+  // Notices board — show live announcements
+  const noticeBoard = liveAnnouncements.length
+    ? liveAnnouncements.map((a: any) => ({
+        title: a.title,
+        content: a.content,
+        date: a.date,
+        author: a.author,
+      }))
+    : [
+        {
+          title: "Campus Closure: Summer Vacation Term",
+          content:
+            "School campus operations will be suspended starting June 15 for the summer recess. Fall term reopens August 10.",
+          date: "May 14",
+          author: "Principal Menon",
+        },
+        {
+          title: "Annual Science Fair Participation",
+          content:
+            "Registrations are open for the junior scientist science fair projects. Contact science HOD Rao.",
+          date: "May 12",
+          author: "Academic Dean",
+        },
+      ];
 
   const handleCreateTicket = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -132,7 +129,7 @@ function ParentNotifications() {
           icon={Volume2}
           tone="info"
         />
-        <StatCard label="Critical Alerts" value="2" icon={AlertTriangle} tone="warning" />
+        <StatCard label="Critical Alerts" value={String(alertsFeed.length)} icon={AlertTriangle} tone="warning" />
         <StatCard
           label="Support Tickets"
           value={String(tickets.length)}

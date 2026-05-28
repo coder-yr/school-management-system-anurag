@@ -19,7 +19,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/hostel")({
   head: () => ({ meta: [{ title: "Hostel · Campus OS" }] }),
@@ -27,7 +28,6 @@ export const Route = createFileRoute("/admin/hostel")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"rooms" | "complaints" | "visitors" | "assets" | "utilities">(
     "rooms",
   );
@@ -121,9 +121,32 @@ function Page() {
   ]);
   const [utilityFilter, setUtilityFilter] = useState<"all" | "paid" | "due" | "overdue">("all");
 
-  const totalBeds = store.hostelRooms.reduce((a, r) => a + r.capacity, 0);
-  const occupiedBeds = store.hostelRooms.reduce((a, r) => a + r.occupied, 0);
-  const openComplaints = store.hostelComplaints.filter(
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [visitors, setVisitors] = useState<any[]>([]);
+
+  const fetchData = async () => {
+    try {
+      const [rRes, cRes, vRes] = await Promise.all([
+        apiClient<any>("/hostel/rooms"),
+        apiClient<any>("/hostel/complaints"),
+        apiClient<any>("/hostel/visitors"),
+      ]);
+      setRooms(rRes?.data || []);
+      setComplaints(cRes?.data || []);
+      setVisitors(vRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to fetch hostel data");
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const totalBeds = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
+  const occupiedBeds = rooms.reduce((a, r) => a + (r.occupied || 0), 0);
+  const openComplaints = complaints.filter(
     (c) => c.status === "open" || c.status === "emergency",
   ).length;
 
@@ -165,7 +188,7 @@ function Page() {
         />
         <StatCard
           label="Under Maintenance"
-          value={String(store.hostelRooms.filter((r) => r.status === "maintenance").length)}
+          value={String(rooms.filter((r) => r.status === "maintenance").length)}
           icon={Wrench}
           tone="warning"
         />
@@ -199,14 +222,14 @@ function Page() {
 
       {tab === "rooms" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {store.hostelRooms.map((r) => (
+          {rooms.map((r) => (
             <div
               key={r.id}
               className={`rounded-xl border p-4 shadow-sm transition-all hover:shadow-md ${r.status === "maintenance" ? "border-[oklch(0.75_0.15_75)]/50 bg-[oklch(0.75_0.15_75)]/5" : r.status === "full" ? "border-accent/30 bg-accent/5" : "border-border bg-card"}`}
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="text-lg font-semibold">
-                  Block {r.block} · {r.roomNo}
+                  Block {r.block} · {r.room_no}
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status === "available" ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : r.status === "full" ? "bg-accent/10 text-accent" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
@@ -215,17 +238,17 @@ function Page() {
                 </span>
               </div>
               <div className="flex gap-2 mb-2">
-                {Array.from({ length: r.capacity }).map((_, i) => (
+                {Array.from({ length: r.capacity || 0 }).map((_, i) => (
                   <div
                     key={i}
-                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium ${i < r.occupied ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}
+                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium ${i < (r.occupied || 0) ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}
                   >
-                    {i < r.occupied ? "●" : "○"}
+                    {i < (r.occupied || 0) ? "●" : "○"}
                   </div>
                 ))}
               </div>
               <div className="text-xs text-muted-foreground">
-                {r.occupied}/{r.capacity} beds occupied
+                {r.occupied || 0}/{r.capacity || 0} beds occupied
               </div>
             </div>
           ))}
@@ -246,20 +269,20 @@ function Page() {
           }
         >
           <div className="space-y-3">
-            {store.hostelComplaints.map((c) => (
+            {complaints.map((c) => (
               <div
                 key={c.id}
                 className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-4 ${c.status === "emergency" ? "border-destructive/50 bg-destructive/5" : "border-border"}`}
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{c.studentName}</span>
+                    <span className="font-medium text-sm">{c.student_name}</span>
                     {c.status === "emergency" && (
                       <ShieldAlert className="h-4 w-4 text-destructive" />
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {c.room} · {c.category} · {c.createdAt}
+                    {c.room} · {c.category} · {new Date(c.created_at).toLocaleDateString()}
                   </div>
                   <div className="text-sm mt-1">{c.description}</div>
                 </div>
@@ -267,24 +290,20 @@ function Page() {
                   {c.status === "open" && (
                     <>
                       <button
-                        onClick={() => {
-                          dispatch({
-                            type: "UPDATE_HOSTEL_COMPLAINT",
-                            payload: { id: c.id, updates: { status: "in-progress" } },
-                          });
+                        onClick={async () => {
+                          await apiClient(`/hostel/complaints/${c.id}`, { method: "PATCH", data: { status: "in-progress" } });
                           toast.success("Complaint updated");
+                          fetchData();
                         }}
                         className="rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-all"
                       >
                         In Progress
                       </button>
                       <button
-                        onClick={() => {
-                          dispatch({
-                            type: "UPDATE_HOSTEL_COMPLAINT",
-                            payload: { id: c.id, updates: { status: "emergency" } },
-                          });
+                        onClick={async () => {
+                          await apiClient(`/hostel/complaints/${c.id}`, { method: "PATCH", data: { status: "emergency" } });
                           toast.error("Emergency flagged!");
+                          fetchData();
                         }}
                         className="rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 transition-all"
                       >
@@ -294,12 +313,10 @@ function Page() {
                   )}
                   {c.status === "in-progress" && (
                     <button
-                      onClick={() => {
-                        dispatch({
-                          type: "UPDATE_HOSTEL_COMPLAINT",
-                          payload: { id: c.id, updates: { status: "resolved" } },
-                        });
+                      onClick={async () => {
+                        await apiClient(`/hostel/complaints/${c.id}`, { method: "PATCH", data: { status: "resolved" } });
                         toast.success("Complaint resolved");
+                        fetchData();
                       }}
                       className="rounded-lg bg-[oklch(0.65_0.15_155)]/15 px-3 py-1.5 text-xs font-medium text-[oklch(0.45_0.15_155)]"
                     >
@@ -316,7 +333,7 @@ function Page() {
                 </div>
               </div>
             ))}
-            {store.hostelComplaints.length === 0 && (
+            {complaints.length === 0 && (
               <EmptyState icon={CheckCircle} title="No complaints" description="All clear!" />
             )}
           </div>
@@ -337,9 +354,9 @@ function Page() {
           }
         >
           <div className="space-y-3">
-            {store.hostelVisitors.map((v) => (
+            {visitors.map((v) => (
               <div
-                key={v.id}
+                key={v._id || v.id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-4"
               >
                 <div>
@@ -348,25 +365,20 @@ function Page() {
                     Visiting {v.studentName} · Room {v.room} · {v.purpose}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    In: {v.checkIn}
-                    {v.checkOut ? ` · Out: ${v.checkOut}` : ""}
+                    In: {new Date(v.checkIn).toLocaleString()}
+                    {v.checkOut ? ` · Out: ${new Date(v.checkOut).toLocaleString()}` : ""}
                   </div>
                 </div>
                 <div>
                   {v.status === "checked-in" ? (
                     <button
-                      onClick={() => {
-                        dispatch({
-                          type: "UPDATE_HOSTEL_VISITOR",
-                          payload: {
-                            id: v.id,
-                            updates: {
-                              status: "checked-out",
-                              checkOut: new Date().toLocaleString(),
-                            },
-                          },
+                      onClick={async () => {
+                        await apiClient(`/hostel/visitors/${v._id || v.id}`, {
+                          method: "PATCH",
+                          data: { status: "checked-out", checkOut: new Date().toISOString() }
                         });
                         toast.success("Visitor checked out");
+                        fetchData();
                       }}
                       className="rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-all"
                     >
@@ -381,7 +393,7 @@ function Page() {
               </div>
             ))}
           </div>
-          {store.hostelVisitors.length === 0 && (
+          {visitors.length === 0 && (
             <EmptyState
               icon={Users}
               title="No visitors"
@@ -641,23 +653,26 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_HOSTEL_COMPLAINT",
-                  payload: {
-                    id: genId(),
-                    studentName: fd.get("student") as string,
-                    room: fd.get("room") as string,
-                    category: fd.get("category") as string,
-                    description: fd.get("desc") as string,
-                    status: "open",
-                    createdAt: new Date().toISOString().split("T")[0],
-                  },
-                });
-                toast.success("Complaint filed");
-                setShowComplaint(false);
+                try {
+                  await apiClient("/hostel/complaints", {
+                    method: "POST",
+                    data: {
+                      student_name: fd.get("student") as string,
+                      room: fd.get("room") as string,
+                      category: fd.get("category") as string,
+                      description: fd.get("desc") as string,
+                      status: "open"
+                    }
+                  });
+                  toast.success("Complaint filed");
+                  setShowComplaint(false);
+                  fetchData();
+                } catch (err) {
+                  toast.error("Failed to file complaint");
+                }
               }}
               className="space-y-3"
             >
@@ -718,24 +733,26 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_HOSTEL_VISITOR",
-                  payload: {
-                    id: genId(),
-                    visitorName: fd.get("visitor") as string,
-                    studentName: fd.get("student") as string,
-                    room: fd.get("room") as string,
-                    purpose: fd.get("purpose") as string,
-                    checkIn: new Date().toLocaleString(),
-                    checkOut: "",
-                    status: "checked-in",
-                  },
-                });
-                toast.success("Visitor checked in");
-                setShowVisitor(false);
+                try {
+                  await apiClient("/hostel/visitors", {
+                    method: "POST",
+                    data: {
+                      visitorName: fd.get("visitor") as string,
+                      studentName: fd.get("student") as string,
+                      room: fd.get("room") as string,
+                      purpose: fd.get("purpose") as string,
+                      status: "checked-in"
+                    }
+                  });
+                  toast.success("Visitor checked in");
+                  setShowVisitor(false);
+                  fetchData();
+                } catch (err) {
+                  toast.error("Failed to log visitor");
+                }
               }}
               className="space-y-3"
             >

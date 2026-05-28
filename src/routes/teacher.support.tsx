@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { LifeBuoy, Plus, MessageSquare, AlertCircle, CheckCircle, Clock } from "lucide-react";
+
+const genId = () => Math.random().toString(36).substr(2, 9);
 
 export const Route = createFileRoute("/teacher/support")({
   head: () => ({ meta: [{ title: "Tickets & Support · Campus OS" }] }),
@@ -12,8 +13,9 @@ export const Route = createFileRoute("/teacher/support")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
+  
+  const [supportTicketsStore, setSupportTicketsStore] = useState<any[]>([]);
 
   // Form states
   const [showAddForm, setShowAddForm] = useState(false);
@@ -22,11 +24,11 @@ function Page() {
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [description, setDescription] = useState("");
 
-  const teacherName = user?.name || "Anita Iyer";
+  const teacherName = user?.name || "Teacher";
 
   // Filter tickets by current user
-  const tickets = store.supportTickets.filter(
-    (t) => t.submittedBy === teacherName || t.submittedBy === "Anita Iyer",
+  const tickets = supportTicketsStore.filter(
+    (t) => t.submittedBy === teacherName || t.submittedBy === "Teacher",
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -48,7 +50,7 @@ function Page() {
       responses: [],
     };
 
-    dispatch({ type: "ADD_SUPPORT_TICKET", payload: newTicket });
+    setSupportTicketsStore((prev) => [newTicket, ...prev]);
     toast.success("Support ticket submitted!", {
       description: "Our admin team has been notified.",
     });

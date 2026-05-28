@@ -3,7 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, Plus, X, Clock } from "lucide-react";
 import { PageHeader, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/exams")({
   head: () => ({ meta: [{ title: "Exams & Timetable · Campus OS" }] }),
@@ -11,12 +12,21 @@ export const Route = createFileRoute("/admin/exams")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"exams" | "timetable">("exams");
   const [showAdd, setShowAdd] = useState(false);
+  const [exams, setExams] = useState<any[]>([]);
+
+  const loadExams = async () => {
+    try {
+      const res = await apiClient<any>("/exams");
+      setExams(res?.data || []);
+    } catch {}
+  };
+
+  useEffect(() => { loadExams(); }, []);
 
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const times = [...new Set(store.timetableEntries.map((t) => t.time))].sort();
+  const times: string[] = [];
 
   return (
     <div>
@@ -64,38 +74,38 @@ function Page() {
                 </tr>
               </thead>
               <tbody>
-                {store.examSchedules.map((e) => (
-                  <tr key={e.id} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 pr-4 font-medium">{e.name}</td>
-                    <td className="py-3 pr-4">{e.subject}</td>
-                    <td className="py-3 pr-4">{e.grade}</td>
-                    <td className="py-3 pr-4">{e.date}</td>
+                {exams.map((e: any) => (
+                  <tr key={e._id || e.id} className="border-b border-border/50 last:border-0">
+                    <td className="py-3 pr-4 font-medium">{e.name || e.title}</td>
+                    <td className="py-3 pr-4">{e.subject?.name || e.subject}</td>
+                    <td className="py-3 pr-4">{e.class?.name || e.grade}</td>
+                    <td className="py-3 pr-4">{new Date(e.date || e.examDate).toLocaleDateString()}</td>
                     <td className="py-3 pr-4 text-muted-foreground">
                       {e.startTime}–{e.endTime}
                     </td>
-                    <td className="py-3">{e.room}</td>
+                    <td className="py-3">{e.room || e.venue || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div className="md:hidden space-y-3">
-            {store.examSchedules.map((e) => (
-              <div key={e.id} className="rounded-lg border border-border p-3">
+            {exams.map((e: any) => (
+              <div key={e._id || e.id} className="rounded-lg border border-border p-3">
                 <div className="flex justify-between mb-1">
                   <span className="font-medium text-sm">
-                    {e.name} — {e.subject}
+                    {e.name || e.title} — {e.subject?.name || e.subject}
                   </span>
-                  <span className="text-xs text-muted-foreground">{e.grade}</span>
+                  <span className="text-xs text-muted-foreground">{e.class?.name || e.grade}</span>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-2">
                   <Clock className="h-3 w-3" />
-                  {e.date} · {e.startTime}–{e.endTime} · {e.room}
+                  {new Date(e.date || e.examDate).toLocaleDateString()} · {e.startTime}–{e.endTime} · {e.room || e.venue || "—"}
                 </div>
               </div>
             ))}
           </div>
-          {store.examSchedules.length === 0 && (
+          {exams.length === 0 && (
             <EmptyState
               icon={CalendarDays}
               title="No exams scheduled"
@@ -107,48 +117,11 @@ function Page() {
 
       {tab === "timetable" && (
         <Panel title="Class Timetable — Grade 10-A">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="border border-border p-2 bg-muted text-xs">Time</th>
-                  {days.map((d) => (
-                    <th key={d} className="border border-border p-2 bg-muted text-xs">
-                      {d}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {times.map((time) => (
-                  <tr key={time}>
-                    <td className="border border-border p-2 font-medium text-accent text-xs">
-                      {time}
-                    </td>
-                    {days.map((day) => {
-                      const entry = store.timetableEntries.find(
-                        (t) =>
-                          t.day === day && t.time === time && t.grade === "10" && t.section === "A",
-                      );
-                      return (
-                        <td key={day} className="border border-border p-2 text-xs">
-                          {entry ? (
-                            <div>
-                              <div className="font-medium">{entry.subject}</div>
-                              <div className="text-muted-foreground">{entry.teacher}</div>
-                              <div className="text-muted-foreground">Room {entry.room}</div>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <EmptyState
+            icon={CalendarDays}
+            title="Timetable coming soon"
+            description="Timetable data will be loaded from the backend API."
+          />
         </Panel>
       )}
 
@@ -171,24 +144,28 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_EXAM_SCHEDULE",
-                  payload: {
-                    id: genId(),
-                    name: fd.get("name") as string,
-                    subject: fd.get("subject") as string,
-                    grade: fd.get("grade") as string,
-                    date: fd.get("date") as string,
-                    startTime: fd.get("start") as string,
-                    endTime: fd.get("end") as string,
-                    room: fd.get("room") as string,
-                  },
-                });
-                toast.success("Exam scheduled");
-                setShowAdd(false);
+                try {
+                  await apiClient("/exams", {
+                    method: "POST",
+                    data: {
+                      title: fd.get("name") as string,
+                      subject: fd.get("subject") as string,
+                      class: fd.get("grade") as string,
+                      date: fd.get("date") as string,
+                      startTime: fd.get("start") as string,
+                      endTime: fd.get("end") as string,
+                      room: fd.get("room") as string,
+                    },
+                  });
+                  toast.success("Exam scheduled");
+                  setShowAdd(false);
+                  loadExams();
+                } catch {
+                  toast.error("Failed to schedule exam");
+                }
               }}
               className="space-y-3"
             >

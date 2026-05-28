@@ -3,55 +3,67 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Wallet, CheckCircle, CreditCard } from "lucide-react";
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
-import { DEMO_STUDENT_ID } from "@/lib/demo-ids";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/student/fees")({ component: Page });
 
 function Page() {
-  const { store, dispatch } = useStore();
-  const myFees = store.feeRecords.filter((f) => f.studentId === DEMO_STUDENT_ID);
-  const myPayments = store.paymentTransactions.filter((p) => p.studentId === DEMO_STUDENT_ID);
-  const totalDue = myFees.reduce((a, f) => a + f.due, 0);
-  const totalPaid = myFees.reduce((a, f) => a + f.paid, 0);
+  const [myFees, setMyFees] = useState<any[]>([]);
+  const [myPayments, setMyPayments] = useState<any[]>([]);
   const [paying, setPaying] = useState(false);
   const [showReceipt, setShowReceipt] = useState<string | null>(null);
 
-  const handlePay = (feeId: string, amount: number) => {
+  useEffect(() => {
+    // 1. Get first available student (as mock login)
+    apiClient<any>("/students").then((sRes) => {
+      const sid = sRes?.data?.[0]?._id;
+      if (!sid) return;
+      // 2. Fetch fees & payments
+      Promise.all([
+        apiClient<any>(`/fees/student/${sid}`),
+        apiClient<any>(`/fees/student/${sid}/payments`)
+      ]).then(([fRes, pRes]) => {
+        setMyFees(fRes?.data || []);
+        setMyPayments(pRes?.data || []);
+      });
+    });
+  }, []);
+
+  const totalDue = myFees.reduce((a, f) => a + ((f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0)), 0);
+  const totalPaid = myFees.reduce((a, f) => a + (f.paidAmount || 0), 0);
+
+  const handlePay = async (feeId: string, amount: number) => {
     setPaying(true);
-    setTimeout(() => {
-      const receiptNo = `RCP-2025-${String(store.paymentTransactions.length + 1).padStart(3, "0")}`;
-      dispatch({
-        type: "ADD_PAYMENT",
-        payload: {
-          id: genId(),
-          studentId: DEMO_STUDENT_ID,
-          studentName: "Aarav Sharma",
-          amount,
-          date: new Date().toISOString().split("T")[0],
-          method: "Online",
-          receiptNo,
-          category: "Tuition",
-          status: "success",
-        },
+    try {
+      const res = await apiClient("/fees/manual-payment", {
+        method: "POST",
+        data: {
+          feeId,
+          amountPaid: amount,
+          paymentMethod: "ONLINE",
+          remarks: "Student App Payment"
+        }
       });
-      dispatch({
-        type: "UPDATE_FEE_RECORD",
-        payload: {
-          id: feeId,
-          updates: {
-            paid: myFees.find((f) => f.id === feeId)!.paid + amount,
-            due: myFees.find((f) => f.id === feeId)!.due - amount,
-            status: myFees.find((f) => f.id === feeId)!.due - amount <= 0 ? "paid" : "partial",
-          },
-        },
+      toast.success("Payment successful!");
+      setShowReceipt(res.data?.receiptNumber || "RCPT-OK");
+      // Refetch
+      apiClient<any>("/students").then((sRes) => {
+        const sid = sRes?.data?.[0]?._id;
+        if (sid) {
+          Promise.all([
+            apiClient<any>(`/fees/student/${sid}`),
+            apiClient<any>(`/fees/student/${sid}/payments`)
+          ]).then(([fRes, pRes]) => {
+            setMyFees(fRes?.data || []);
+            setMyPayments(pRes?.data || []);
+          });
+        }
       });
-      toast.success("Payment successful!", {
-        description: `₹${amount.toLocaleString()} paid. Receipt: ${receiptNo}`,
-      });
-      setShowReceipt(receiptNo);
+    } catch (err) {
+      toast.error("Payment failed");
+    } finally {
       setPaying(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -79,39 +91,42 @@ function Page() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Panel title="Outstanding Dues">
-          {myFees.filter((f) => f.due > 0).length > 0 ? (
+          {myFees.filter((f) => ((f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0)) > 0).length > 0 ? (
             <div className="space-y-3">
               {myFees
-                .filter((f) => f.due > 0)
-                .map((f) => (
-                  <div key={f.id} className="rounded-lg border border-border p-4">
-                    <div className="flex justify-between mb-2">
-                      <span className="font-medium">{f.category}</span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${f.status === "overdue" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
+                .filter((f) => ((f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0)) > 0)
+                .map((f) => {
+                  const due = (f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0);
+                  return (
+                    <div key={f._id} className="rounded-lg border border-border p-4">
+                      <div className="flex justify-between mb-2">
+                        <span className="font-medium">{f.feeType}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${f.status === "OVERDUE" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
+                        >
+                          {f.status}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-3">
+                        Due: ₹{due.toLocaleString()} · By {new Date(f.dueDate).toLocaleDateString()}
+                      </div>
+                      <button
+                        onClick={() => handlePay(f._id, due)}
+                        disabled={paying}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60"
                       >
-                        {f.status}
-                      </span>
+                        {paying ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                        ) : (
+                          <>
+                            <CreditCard className="h-4 w-4" />
+                            Pay ₹{due.toLocaleString()}
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <div className="text-sm text-muted-foreground mb-3">
-                      Due: ₹{f.due.toLocaleString()} · By {f.dueDate}
-                    </div>
-                    <button
-                      onClick={() => handlePay(f.id, f.due)}
-                      disabled={paying}
-                      className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all disabled:opacity-60"
-                    >
-                      {paying ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-                      ) : (
-                        <>
-                          <CreditCard className="h-4 w-4" />
-                          Pay ₹{f.due.toLocaleString()}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           ) : (
             <div className="flex flex-col items-center py-8 text-center">
@@ -125,18 +140,18 @@ function Page() {
           <div className="space-y-3">
             {myPayments.map((p) => (
               <div
-                key={p.id}
+                key={p._id}
                 className="flex items-center justify-between rounded-lg border border-border p-3"
               >
                 <div>
-                  <div className="text-sm font-medium">₹{p.amount.toLocaleString()}</div>
+                  <div className="text-sm font-medium">₹{p.amountPaid?.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">
-                    {p.date} · {p.method}
+                    {new Date(p.paymentDate).toLocaleDateString()} · {p.paymentMethod}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-medium text-[oklch(0.45_0.15_155)]">
-                    {p.receiptNo}
+                    {p.receiptNumber}
                   </div>
                   <span className="rounded-full px-2 py-0.5 text-[10px] bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]">
                     Success

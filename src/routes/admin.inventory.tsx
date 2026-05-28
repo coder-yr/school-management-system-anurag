@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Package,
@@ -14,7 +14,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/inventory")({
   head: () => ({ meta: [{ title: "Inventory · Campus OS" }] }),
@@ -26,121 +26,34 @@ function Page() {
   const [showPOModal, setShowPOModal] = useState(false);
   const [showDispatchModal, setShowDispatchModal] = useState(false);
 
-  // Stock Items state
-  const [stockItems, setStockItems] = useState([
-    {
-      id: "i1",
-      name: "Lenovo ThinkPad L14",
-      category: "IT Hardware",
-      stock: 35,
-      unit: "pcs",
-      threshold: 10,
-      shelf: "Rack A-3",
-      status: "In Stock",
-    },
-    {
-      id: "i2",
-      name: "Chemistry Lab Glassware Set",
-      category: "Lab Equipment",
-      stock: 8,
-      unit: "sets",
-      threshold: 15,
-      shelf: "Lab Shelf C",
-      status: "Low Stock",
-    },
-    {
-      id: "i3",
-      name: "School Blazer (Navy Blue)",
-      category: "Uniforms",
-      stock: 120,
-      unit: "pcs",
-      threshold: 30,
-      shelf: "Block B Wardrobe",
-      status: "In Stock",
-    },
-    {
-      id: "i4",
-      name: "A4 Printing Paper Reams",
-      category: "Stationery",
-      stock: 5,
-      unit: "reams",
-      threshold: 20,
-      shelf: "Office Cabinet 2",
-      status: "Reorder Needed",
-    },
-  ]);
+  // States
+  const [stockItems, setStockItems] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [dispatchLogs, setDispatchLogs] = useState<any[]>([]);
 
-  // Suppliers state
-  const [suppliers, setSuppliers] = useState([
-    {
-      id: "s1",
-      name: "TechNova Enterprises",
-      contact: "Sandeep Rao",
-      phone: "+91 99887 11223",
-      category: "IT Hardware",
-      email: "info@technova.com",
-    },
-    {
-      id: "s2",
-      name: "Vikas Uniforms & Garments",
-      contact: "Vikas Jain",
-      phone: "+91 88776 22334",
-      category: "Uniforms",
-      email: "sales@vikasgarments.com",
-    },
-    {
-      id: "s3",
-      name: "Radha Stationery Mart",
-      contact: "Radhe Shyam",
-      phone: "+91 77665 33445",
-      category: "Stationery",
-      email: "radhastationery@gmail.com",
-    },
-  ]);
+  const fetchData = async () => {
+    try {
+      const [stockRes, suppRes, poRes, dispatchRes] = await Promise.all([
+        apiClient<any>("/inventory/stock"),
+        apiClient<any>("/inventory/suppliers"),
+        apiClient<any>("/inventory/purchase-orders"),
+        apiClient<any>("/inventory/dispatch-logs")
+      ]);
+      setStockItems(stockRes?.data || []);
+      setSuppliers(suppRes?.data || []);
+      setPurchaseOrders(poRes?.data || []);
+      setDispatchLogs(dispatchRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to load inventory data");
+    }
+  };
 
-  // Purchase Orders state
-  const [purchaseOrders, setPurchaseOrders] = useState([
-    {
-      id: "po1",
-      poNo: "PO-2026-001",
-      item: "A4 Printing Paper Reams",
-      supplier: "Radha Stationery Mart",
-      qty: 50,
-      cost: 250,
-      date: "2026-05-18",
-      status: "Approved",
-    },
-    {
-      id: "po2",
-      poNo: "PO-2026-002",
-      item: "Chemistry Glass Beakers",
-      supplier: "SciTech Instruments",
-      qty: 20,
-      cost: 400,
-      date: "2026-05-20",
-      status: "Pending Approval",
-    },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  // Dispatch Log state
-  const [dispatchLogs, setDispatchLogs] = useState([
-    {
-      id: "d1",
-      item: "Lenovo ThinkPad L14",
-      qty: 2,
-      recipient: "Prof. Ananya Sen (IT)",
-      date: "2026-05-19",
-    },
-    {
-      id: "d2",
-      item: "School Blazer (Navy Blue)",
-      qty: 5,
-      recipient: "Hostel Warden Block A",
-      date: "2026-05-20",
-    },
-  ]);
-
-  const handleCreatePO = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreatePO = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const item = fd.get("item") as string;
@@ -148,67 +61,45 @@ function Page() {
     const qty = Number(fd.get("qty"));
     const cost = Number(fd.get("cost"));
 
-    const newPO = {
-      id: genId(),
-      poNo: `PO-2026-00${purchaseOrders.length + 1}`,
-      item,
-      supplier: supplierName,
-      qty,
-      cost,
-      date: new Date().toISOString().split("T")[0],
-      status: "Pending Approval",
-    };
-
-    setPurchaseOrders((prev) => [newPO, ...prev]);
-    toast.success(`Purchase Order ${newPO.poNo} created for ${item}!`);
-    setShowPOModal(false);
+    try {
+      await apiClient("/inventory/purchase-orders", {
+        method: "POST",
+        data: {
+          poNo: `PO-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`,
+          item,
+          supplier: supplierName,
+          qty,
+          cost,
+          date: new Date().toISOString().split("T")[0],
+          status: "Pending Approval"
+        }
+      });
+      toast.success("Purchase Order created!");
+      setShowPOModal(false);
+      fetchData();
+    } catch (err) {
+      toast.error("Failed to create PO");
+    }
   };
 
-  const handleDispatchStock = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleDispatchStock = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const itemId = fd.get("itemId") as string;
     const qty = Number(fd.get("qty"));
     const recipient = fd.get("recipient") as string;
 
-    const selectedItem = stockItems.find((i) => i.id === itemId);
-    if (!selectedItem) return;
-
-    if (selectedItem.stock < qty) {
-      toast.error(`Insufficient stock! Only ${selectedItem.stock} ${selectedItem.unit} available.`);
-      return;
+    try {
+      await apiClient("/inventory/dispatch", {
+        method: "POST",
+        data: { itemId, qty, recipient }
+      });
+      toast.success("Dispatched successfully.");
+      setShowDispatchModal(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to dispatch stock");
     }
-
-    // Deduct stock
-    setStockItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const remaining = item.stock - qty;
-          let newStatus = "In Stock";
-          if (remaining <= 0) newStatus = "Out of Stock";
-          else if (remaining <= item.threshold) newStatus = "Low Stock";
-          return { ...item, stock: remaining, status: newStatus };
-        }
-        return item;
-      }),
-    );
-
-    // Add log
-    setDispatchLogs((prev) => [
-      {
-        id: genId(),
-        item: selectedItem.name,
-        qty,
-        recipient,
-        date: new Date().toISOString().split("T")[0],
-      },
-      ...prev,
-    ]);
-
-    toast.success(
-      `Dispatched ${qty} ${selectedItem.unit} of ${selectedItem.name} to ${recipient}.`,
-    );
-    setShowDispatchModal(false);
   };
 
   const totalValue = stockItems.reduce((acc, i) => acc + i.stock * 15, 0); // Mock cost per item

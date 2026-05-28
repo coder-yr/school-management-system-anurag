@@ -10,138 +10,31 @@ export const Route = createFileRoute("/parent/admissions")({
 });
 
 // ─────────────────────────────────────────────────────────────
-// MOCK DATA
-// ─────────────────────────────────────────────────────────────
-
-const MOCK_PARENT_APPLICATIONS: AdmissionApplication[] = [
-  {
-    id: "app_aarav",
-    studentName: "Aarav Sharma",
-    fatherName: "Rohit Sharma",
-    motherName: "Priya Sharma",
-    dateOfBirth: "2011-03-10",
-    gender: "Male",
-    email: "aarav.sharma@example.com",
-    phone: "9876543210",
-    currentSchool: "City Public School",
-    currentGrade: "9",
-    applyingForGrade: "10",
-    address: "24 Evergreen Terrace, Andheri West",
-    city: "Mumbai",
-    state: "Maharashtra",
-    pincode: "400053",
-    applicationStatus: "Approved",
-    appliedAt: "2026-05-15T10:00:00Z",
-    reviewedAt: "2026-05-20T14:30:00Z",
-    reviewedBy: "principal@school.com",
-    documents: [
-      {
-        id: "doc_ar1",
-        documentType: "Birth Certificate",
-        fileName: "aarav_birth_cert.pdf",
-        fileUrl: "/uploads/aarav_birth_cert.pdf",
-        uploadedAt: "2026-05-15T10:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "principal@school.com",
-        verifiedAt: "2026-05-16T09:00:00Z",
-      },
-      {
-        id: "doc_ar2",
-        documentType: "Previous Marksheet",
-        fileName: "aarav_class9_marksheet.pdf",
-        fileUrl: "/uploads/aarav_class9_marksheet.pdf",
-        uploadedAt: "2026-05-15T10:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "principal@school.com",
-        verifiedAt: "2026-05-16T09:15:00Z",
-      },
-      {
-        id: "doc_ar3",
-        documentType: "Transfer Certificate",
-        fileName: "aarav_tc.pdf",
-        fileUrl: "/uploads/aarav_tc.pdf",
-        uploadedAt: "2026-05-15T10:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "principal@school.com",
-        verifiedAt: "2026-05-16T09:30:00Z",
-      },
-      {
-        id: "doc_ar4",
-        documentType: "Photo",
-        fileName: "aarav_photo.jpg",
-        fileUrl: "/uploads/aarav_photo.jpg",
-        uploadedAt: "2026-05-15T10:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "principal@school.com",
-        verifiedAt: "2026-05-16T10:00:00Z",
-      },
-    ],
-    admissionFeeStatus: "Paid",
-    admissionFeeAmount: 5000,
-    notes: "Excellent academic record. Merit scholarship eligible.",
-    parentEmail: "rohit.sharma@example.com",
-    parentPhone: "9876543209",
-    createdAt: "2026-05-15T10:00:00Z",
-    updatedAt: "2026-05-20T14:30:00Z",
-  },
-  {
-    id: "app_ananya",
-    studentName: "Ananya Sharma",
-    fatherName: "Rohit Sharma",
-    motherName: "Priya Sharma",
-    dateOfBirth: "2013-07-22",
-    gender: "Female",
-    email: "ananya.sharma@example.com",
-    phone: "9876543211",
-    currentSchool: "City Public School",
-    currentGrade: "7",
-    applyingForGrade: "8",
-    address: "24 Evergreen Terrace, Andheri West",
-    city: "Mumbai",
-    state: "Maharashtra",
-    pincode: "400053",
-    applicationStatus: "Submitted",
-    appliedAt: "2026-05-17T11:00:00Z",
-    reviewedAt: undefined,
-    reviewedBy: undefined,
-    documents: [
-      {
-        id: "doc_an1",
-        documentType: "Birth Certificate",
-        fileName: "ananya_birth_cert.pdf",
-        fileUrl: "/uploads/ananya_birth_cert.pdf",
-        uploadedAt: "2026-05-17T11:05:00Z",
-        verificationStatus: "Verified",
-        verifiedBy: "principal@school.com",
-        verifiedAt: "2026-05-18T09:00:00Z",
-      },
-      {
-        id: "doc_an2",
-        documentType: "Previous Marksheet",
-        fileName: "ananya_class7_marksheet.pdf",
-        fileUrl: "/uploads/ananya_class7_marksheet.pdf",
-        uploadedAt: "2026-05-17T11:05:00Z",
-        verificationStatus: "Pending",
-      },
-    ],
-    admissionFeeStatus: "Pending",
-    admissionFeeAmount: 5000,
-    notes: "",
-    parentEmail: "rohit.sharma@example.com",
-    parentPhone: "9876543209",
-    createdAt: "2026-05-17T11:00:00Z",
-    updatedAt: "2026-05-18T11:00:00Z",
-  },
-];
-
-// ─────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
+
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 
 function ParentAdmissionsPage() {
   const [view, setView] = useState<"list" | "details" | "new">("list");
   const [selectedApp, setSelectedApp] = useState<AdmissionApplication | null>(null);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  const [applications, setApplications] = useState<any[]>([]);
+
+  const fetchApplications = async () => {
+    try {
+      const res = await apiClient<any>("/admissions/my-applications");
+      setApplications(res?.data || []);
+    } catch (err) {
+      toast.error("Failed to load applications");
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   const handleViewDetails = (app: AdmissionApplication) => {
     setSelectedApp(app);
@@ -169,7 +62,7 @@ function ParentAdmissionsPage() {
           <div className="mb-6">
             <h2 className="mb-4 text-lg font-semibold">Your Applications</h2>
 
-            {MOCK_PARENT_APPLICATIONS.length === 0 ? (
+            {applications.length === 0 ? (
               <Panel className="text-center">
                 <p className="text-sm text-muted-foreground">No applications yet</p>
                 <button
@@ -181,9 +74,9 @@ function ParentAdmissionsPage() {
               </Panel>
             ) : (
               <div className="grid gap-4">
-                {MOCK_PARENT_APPLICATIONS.map((app) => (
+                {applications.map((app) => (
                   <Panel
-                    key={app.id}
+                    key={app._id || app.id}
                     className="cursor-pointer transition hover:border-primary/50"
                     onClick={() => handleViewDetails(app)}
                   >

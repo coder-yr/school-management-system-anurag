@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -12,6 +12,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/events")({
   head: () => ({ meta: [{ title: "Events & Culture · Campus OS" }] }),
@@ -20,25 +21,20 @@ export const Route = createFileRoute("/admin/events")({
 
 function EventsPage() {
   const [tab, setTab] = useState<"events" | "gallery" | "magazine">("events");
+  const [events, setEvents] = useState<any[]>([]);
 
-  const events = [
-    {
-      id: "e1",
-      title: "Annual Science Fair",
-      date: "June 15, 2026",
-      type: "Exhibition",
-      rsvp: 450,
-      tickets: "Free",
-    },
-    {
-      id: "e2",
-      title: "Summer Theatre Fest",
-      date: "July 2, 2026",
-      type: "Cultural",
-      rsvp: 820,
-      tickets: "Paid (₹150)",
-    },
-  ];
+  const fetchEvents = async () => {
+    try {
+      const res = await apiClient<any>("/events");
+      setEvents(res?.data || []);
+    } catch (err) {
+      toast.error("Failed to load events");
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -95,7 +91,7 @@ function EventsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {events.map((e) => (
               <div
-                key={e.id}
+                key={e._id}
                 className="p-4 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-between hover:border-accent/50 transition-colors"
               >
                 <div className="flex justify-between items-start mb-4">
@@ -105,7 +101,7 @@ function EventsPage() {
                     </span>
                     <h4 className="font-bold text-lg text-foreground leading-tight">{e.title}</h4>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" /> {e.date}
+                      <Calendar className="h-3.5 w-3.5" /> {new Date(e.date).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-orange-100 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400">
@@ -125,7 +121,7 @@ function EventsPage() {
                       Current RSVPs
                     </p>
                     <p className="text-sm font-bold flex items-center gap-1.5 justify-end">
-                      <Users className="h-4 w-4 text-emerald-500" /> {e.rsvp} Confirmed
+                      <Users className="h-4 w-4 text-emerald-500" /> {e.rsvpCount} Confirmed
                     </p>
                   </div>
                 </div>

@@ -1,14 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/student/timetable")({ component: Page });
 
 function Page() {
-  const { store } = useStore();
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const entries = store.timetableEntries.filter((t) => t.grade === "10" && t.section === "A");
-  const times = [...new Set(entries.map((t) => t.time))].sort();
+  const [entries, setEntries] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiClient<any>("/academics/timetable")
+      .then((res) => setEntries(res?.data || []))
+      .catch(() => {});
+  }, []);
+
+  const times = [...new Set(entries.map((t) => t.startTime))].sort();
 
   return (
     <div>
@@ -40,14 +47,14 @@ function Page() {
                       {time}
                     </td>
                     {days.map((day) => {
-                      const e = entries.find((t) => t.day === day && t.time === time);
+                      const e = entries.find((t) => t.dayOfWeek === day && t.startTime === time);
                       return (
                         <td key={day} className="border border-border p-2.5">
                           {e ? (
                             <div>
-                              <div className="text-sm font-medium">{e.subject}</div>
+                              <div className="text-sm font-medium">{e.subjectId?.name || "Subject"}</div>
                               <div className="text-xs text-muted-foreground">
-                                {e.teacher} · {e.room}
+                                {e.teacherId?.user?.firstName || "Teacher"} · {e.room}
                               </div>
                             </div>
                           ) : (
@@ -67,22 +74,22 @@ function Page() {
       <div className="md:hidden space-y-4">
         {days.map((day) => {
           const dayEntries = entries
-            .filter((e) => e.day === day)
-            .sort((a, b) => a.time.localeCompare(b.time));
+            .filter((e) => e.dayOfWeek === day)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
           if (dayEntries.length === 0) return null;
           return (
             <Panel key={day} title={day}>
               <div className="space-y-2">
                 {dayEntries.map((e) => (
                   <div
-                    key={e.id}
+                    key={e._id}
                     className="flex items-center gap-3 rounded-lg border border-border p-3"
                   >
-                    <div className="text-sm font-semibold text-accent w-14 shrink-0">{e.time}</div>
+                    <div className="text-sm font-semibold text-accent w-14 shrink-0">{e.startTime}</div>
                     <div>
-                      <div className="text-sm font-medium">{e.subject}</div>
+                      <div className="text-sm font-medium">{e.subjectId?.name || "Subject"}</div>
                       <div className="text-xs text-muted-foreground">
-                        {e.teacher} · Room {e.room}
+                        {e.teacherId?.user?.firstName || "Teacher"} · Room {e.room}
                       </div>
                     </div>
                   </div>

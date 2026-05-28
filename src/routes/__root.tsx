@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-context";
-import { StoreProvider } from "@/lib/store";
 
 import appCss from "../styles.css?url";
 
@@ -124,17 +123,15 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StoreProvider>
-          <Outlet />
-          <Toaster
-            position="top-right"
-            richColors
-            closeButton
-            toastOptions={{
-              style: { fontFamily: "'Inter', system-ui, sans-serif" },
-            }}
-          />
-        </StoreProvider>
+        <Outlet />
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            style: { fontFamily: "'Inter', system-ui, sans-serif" },
+          }}
+        />
       </AuthProvider>
     </QueryClientProvider>
   );

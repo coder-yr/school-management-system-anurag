@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import { Wallet, AlertTriangle, CheckCircle, Search, Plus, X, Settings } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/fees")({
   head: () => ({ meta: [{ title: "Fees & Finance · Campus OS" }] }),
@@ -12,24 +13,48 @@ export const Route = createFileRoute("/admin/fees")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"overview" | "dues" | "categories">("overview");
   const [search, setSearch] = useState("");
   const [showAddCat, setShowAddCat] = useState(false);
 
-  const totalCollected = store.feeRecords.reduce((a, f) => a + f.paid, 0);
-  const totalDue = store.feeRecords.reduce((a, f) => a + f.due, 0);
-  const overdue = store.feeRecords.filter((f) => f.status === "overdue").length;
-  const paid = store.feeRecords.filter((f) => f.status === "paid").length;
+  const [feeRecords, setFeeRecords] = useState<any[]>([]);
+  const [paymentTransactions, setPaymentTransactions] = useState<any[]>([]);
+  const [feeCategories, setFeeCategories] = useState<any[]>([]);
+
+  const fetchData = async () => {
+    try {
+      const [feesRes, payRes, structRes] = await Promise.all([
+        apiClient<any>("/fees"),
+        apiClient<any>("/fees/payments"),
+        apiClient<any>("/fees/structures")
+      ]);
+      setFeeRecords(feesRes?.data || []);
+      setPaymentTransactions(payRes?.data || []);
+      setFeeCategories(structRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to load fee data");
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const totalCollected = feeRecords.reduce((a, f) => a + (f.paidAmount || 0), 0);
+  const totalDue = feeRecords.reduce((a, f) => a + ((f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0)), 0);
+  const overdue = feeRecords.filter((f) => f.status === "OVERDUE").length;
+  const paid = feeRecords.filter((f) => f.status === "PAID").length;
 
   const pieData = [
     { name: "Collected", value: totalCollected, color: "oklch(0.55 0.15 155)" },
     { name: "Pending", value: totalDue, color: "oklch(0.75 0.15 75)" },
   ];
 
-  const filteredDues = store.feeRecords.filter(
-    (f) => f.due > 0 && f.studentName.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredDues = feeRecords.filter((f) => {
+    const dueAmount = (f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0);
+    const sName = `${f.studentId?.user?.firstName || ''} ${f.studentId?.user?.lastName || ''}`.toLowerCase();
+    return dueAmount > 0 && sName.includes(search.toLowerCase());
+  });
 
   return (
     <div>
@@ -106,24 +131,24 @@ function Page() {
             </div>
           </Panel>
           <Panel title="Recent Payments">
-            {store.paymentTransactions.length > 0 ? (
+            {paymentTransactions.length > 0 ? (
               <div className="space-y-3">
-                {store.paymentTransactions.slice(0, 5).map((p) => (
+                {paymentTransactions.slice(0, 5).map((p) => (
                   <div
-                    key={p.id}
+                    key={p._id}
                     className="flex items-center justify-between rounded-lg border border-border p-3"
                   >
                     <div>
-                      <div className="text-sm font-medium">{p.studentName}</div>
+                      <div className="text-sm font-medium">{p.studentId?.user?.firstName} {p.studentId?.user?.lastName}</div>
                       <div className="text-xs text-muted-foreground">
-                        {p.date} · {p.method}
+                        {new Date(p.paymentDate).toLocaleDateString()} · {p.paymentMethod}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold text-[oklch(0.45_0.15_155)]">
-                        ₹{p.amount.toLocaleString()}
+                        ₹{p.amountPaid?.toLocaleString()}
                       </div>
-                      <div className="text-xs text-muted-foreground">{p.receiptNo}</div>
+                      <div className="text-xs text-muted-foreground">{p.receiptNumber}</div>
                     </div>
                   </div>
                 ))}
@@ -164,44 +189,50 @@ function Page() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDues.map((f) => (
-                  <tr key={f.id} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 pr-4 font-medium">{f.studentName}</td>
-                    <td className="py-3 pr-4">{f.grade}</td>
-                    <td className="py-3 pr-4">₹{f.amount.toLocaleString()}</td>
-                    <td className="py-3 pr-4">₹{f.paid.toLocaleString()}</td>
-                    <td className="py-3 pr-4 font-medium text-destructive">
-                      ₹{f.due.toLocaleString()}
-                    </td>
-                    <td className="py-3 pr-4 text-muted-foreground">{f.dueDate}</td>
-                    <td className="py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${f.status === "overdue" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
-                      >
-                        {f.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {filteredDues.map((f) => {
+                  const due = (f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0);
+                  return (
+                    <tr key={f._id} className="border-b border-border/50 last:border-0">
+                      <td className="py-3 pr-4 font-medium">{f.studentId?.user?.firstName} {f.studentId?.user?.lastName}</td>
+                      <td className="py-3 pr-4">{f.feeType}</td>
+                      <td className="py-3 pr-4">₹{f.amount?.toLocaleString()}</td>
+                      <td className="py-3 pr-4">₹{f.paidAmount?.toLocaleString()}</td>
+                      <td className="py-3 pr-4 font-medium text-destructive">
+                        ₹{due.toLocaleString()}
+                      </td>
+                      <td className="py-3 pr-4 text-muted-foreground">{new Date(f.dueDate).toLocaleDateString()}</td>
+                      <td className="py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${f.status === "OVERDUE" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
+                        >
+                          {f.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="md:hidden space-y-3">
-            {filteredDues.map((f) => (
-              <div key={f.id} className="rounded-lg border border-border p-3">
-                <div className="flex justify-between mb-1">
-                  <span className="font-medium">{f.studentName}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${f.status === "overdue" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
-                  >
-                    {f.status}
-                  </span>
+            {filteredDues.map((f) => {
+              const due = (f.amount || 0) - (f.discountAmount || 0) - (f.paidAmount || 0);
+              return (
+                <div key={f._id} className="rounded-lg border border-border p-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="font-medium">{f.studentId?.user?.firstName} {f.studentId?.user?.lastName}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${f.status === "OVERDUE" ? "bg-destructive/10 text-destructive" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
+                    >
+                      {f.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Due: ₹{due.toLocaleString()} · By {new Date(f.dueDate).toLocaleDateString()}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Due: ₹{f.due.toLocaleString()} · By {f.dueDate}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {filteredDues.length === 0 && (
             <EmptyState
@@ -227,9 +258,9 @@ function Page() {
           }
         >
           <div className="space-y-3">
-            {store.feeCategories.map((c) => (
+            {feeCategories.map((c) => (
               <div
-                key={c.id}
+                key={c._id}
                 className="flex items-center justify-between rounded-lg border border-border p-4"
               >
                 <div className="flex items-center gap-3">
@@ -237,16 +268,15 @@ function Page() {
                   <div>
                     <div className="font-medium text-sm">{c.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {c.description} · {c.frequency}
+                      {c.description}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold">₹{c.amount.toLocaleString()}</span>
+                  <span className="font-semibold">₹{c.amount?.toLocaleString()}</span>
                   <button
                     onClick={() => {
-                      dispatch({ type: "DELETE_FEE_CATEGORY", payload: c.id });
-                      toast.success("Category deleted");
+                      toast.error("Deleting fee structures not implemented in backend API yet");
                     }}
                     className="text-xs text-destructive hover:underline"
                   >
@@ -278,21 +308,26 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_FEE_CATEGORY",
-                  payload: {
-                    id: genId(),
-                    name: fd.get("name") as string,
-                    amount: Number(fd.get("amount")),
-                    frequency: fd.get("frequency") as string,
-                    description: fd.get("description") as string,
-                  },
-                });
-                toast.success("Category added");
-                setShowAddCat(false);
+                try {
+                  await apiClient("/fees/structures", {
+                    method: "POST",
+                    data: {
+                      name: fd.get("name") as string,
+                      amount: Number(fd.get("amount")),
+                      description: fd.get("description") as string,
+                      feeType: "TUITION",
+                      dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString()
+                    }
+                  });
+                  toast.success("Category added");
+                  setShowAddCat(false);
+                  fetchData();
+                } catch (err) {
+                  toast.error("Failed to add category");
+                }
               }}
               className="space-y-3"
             >

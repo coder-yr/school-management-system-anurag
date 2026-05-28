@@ -3,7 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { MessageSquare, Mail, Bell, Plus, X, Send, LifeBuoy, Megaphone } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/communications")({
   head: () => ({ meta: [{ title: "Communications · Campus OS" }] }),
@@ -11,12 +12,26 @@ export const Route = createFileRoute("/admin/communications")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"notices" | "broadcast" | "tickets">("notices");
   const [showAdd, setShowAdd] = useState(false);
   const [broadcastType, setBroadcastType] = useState<"sms" | "email">("sms");
   const [broadcastMsg, setBroadcastMsg] = useState("");
   const [broadcastTarget, setBroadcastTarget] = useState("all");
+
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  const fetchAnnouncements = async () => {
+    try {
+      const res = await apiClient<any>("/notifications/announcements");
+      setAnnouncements(res?.data || []);
+    } catch (err) {
+      // silently ignore
+    }
+  };
+
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
 
   return (
     <div>
@@ -24,13 +39,13 @@ function Page() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard
           label="Announcements"
-          value={String(store.announcements.length)}
+          value={String(announcements.length)}
           icon={Megaphone}
           tone="info"
         />
         <StatCard
           label="Open Tickets"
-          value={String(store.supportTickets.filter((t) => t.status === "open").length)}
+          value="0"
           icon={LifeBuoy}
           tone="warning"
         />
@@ -70,7 +85,7 @@ function Page() {
           }
         >
           <div className="space-y-3">
-            {store.announcements.map((a) => (
+            {announcements.map((a) => (
               <div
                 key={a.id}
                 className={`rounded-lg border p-4 ${a.priority === "urgent" ? "border-destructive/50 bg-destructive/5" : a.priority === "important" ? "border-accent/30 bg-accent/5" : "border-border"}`}
@@ -91,9 +106,14 @@ function Page() {
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      dispatch({ type: "DELETE_ANNOUNCEMENT", payload: a.id });
-                      toast.success("Notice removed");
+                    onClick={async () => {
+                      try {
+                        await apiClient(`/notifications/announcements/${a.id}`, { method: "DELETE" });
+                        toast.success("Notice removed");
+                        fetchAnnouncements();
+                      } catch (err) {
+                        toast.error("Failed to remove notice");
+                      }
                     }}
                     className="text-xs text-destructive hover:underline shrink-0"
                   >
@@ -103,7 +123,7 @@ function Page() {
               </div>
             ))}
           </div>
-          {store.announcements.length === 0 && (
+          {announcements.length === 0 && (
             <EmptyState
               icon={Megaphone}
               title="No announcements"
@@ -169,56 +189,11 @@ function Page() {
 
       {tab === "tickets" && (
         <Panel title="IT Help Desk">
-          <div className="space-y-3">
-            {store.supportTickets.map((t) => (
-              <div key={t.id} className="rounded-lg border border-border p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                  <div>
-                    <span className="font-medium text-sm">{t.title}</span>
-                    <div className="text-xs text-muted-foreground">
-                      {t.submittedBy} · {t.category} · {t.createdAt}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${t.priority === "high" ? "bg-destructive/10 text-destructive" : t.priority === "medium" ? "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]" : "bg-muted text-muted-foreground"}`}
-                    >
-                      {t.priority}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${t.status === "open" ? "bg-accent/10 text-accent" : t.status === "resolved" ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-[oklch(0.75_0.15_75)]/15 text-[oklch(0.50_0.15_75)]"}`}
-                    >
-                      {t.status}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">{t.description}</p>
-                {t.responses.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {t.responses.map((r, i) => (
-                      <div key={i} className="rounded-md bg-muted p-2 text-xs">
-                        <span className="font-medium">{r.author}:</span> {r.message}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {t.status !== "resolved" && t.status !== "closed" && (
-                  <button
-                    onClick={() => {
-                      dispatch({
-                        type: "UPDATE_SUPPORT_TICKET",
-                        payload: { id: t.id, updates: { status: "resolved" } },
-                      });
-                      toast.success("Ticket resolved");
-                    }}
-                    className="mt-3 rounded-lg bg-[oklch(0.65_0.15_155)]/15 px-3 py-1.5 text-xs font-medium text-[oklch(0.45_0.15_155)] hover:bg-[oklch(0.65_0.15_155)]/25 transition-all active:scale-95"
-                  >
-                    Mark Resolved
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+          <EmptyState
+            icon={LifeBuoy}
+            title="No support tickets"
+            description="Tickets from parents and staff will appear here."
+          />
         </Panel>
       )}
 
@@ -241,23 +216,25 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_ANNOUNCEMENT",
-                  payload: {
-                    id: genId(),
-                    title: fd.get("title") as string,
-                    content: fd.get("content") as string,
-                    author: "Admin",
-                    date: new Date().toISOString().split("T")[0],
-                    target: fd.get("target") as "all",
-                    priority: fd.get("priority") as "normal",
-                  },
-                });
-                toast.success("Notice posted");
-                setShowAdd(false);
+                try {
+                  await apiClient("/notifications/announcements", {
+                    method: "POST",
+                    data: {
+                      title: fd.get("title") as string,
+                      content: fd.get("content") as string,
+                      target: fd.get("target") as string,
+                      priority: fd.get("priority") as string,
+                    }
+                  });
+                  toast.success("Notice posted");
+                  setShowAdd(false);
+                  fetchAnnouncements();
+                } catch (err) {
+                  toast.error("Failed to post notice");
+                }
               }}
               className="space-y-3"
             >

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
-
+import { apiClient } from "@/lib/api-client";
 // ── TYPES ──
 
 export interface SchoolInvoice {
@@ -427,10 +427,62 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
   // Load from local storage strictly after mounting on client side
   useEffect(() => {
     setIsMounted(true);
-    try {
-      const savedSchools = localStorage.getItem("super_admin_schools_expanded");
-      if (savedSchools) setSchools(JSON.parse(savedSchools));
+    
+    // Fetch schools from backend if possible
+    const fetchSchools = async () => {
+      try {
+        const response = await apiClient.get<{ data: { results: any[] } }>('/schools?limit=100');
+        if (response.data && Array.isArray(response.data.results)) {
+          const backendSchools = response.data.results.map(s => ({
+            id: s._id || s.id,
+            name: s.name,
+            slug: s.slug || s.name.toLowerCase().replace(/\s+/g, '-'),
+            logoUrl: s.logoUrl || "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=80&fit=crop&q=60",
+            address: s.address || "123 School St",
+            contact: s.phone || s.contact || "+1 555-0192",
+            website: s.website || "https://example.com",
+            adminEmail: s.email || "admin@example.com",
+            plan: s.plan || "Pro",
+            renewalDate: s.renewalDate || "2027-06-15",
+            status: s.isActive === false ? "Suspended" : "Active",
+            isVerified: true,
+            type: s.type || "Secondary",
+            board: s.board || "CBSE",
+            latitude: 47.6062,
+            longitude: -122.3321,
+            studentCount: s.studentCount || 0,
+            teacherCount: s.teacherCount || 0,
+            modules: s.modules || ["Academics", "Finance"],
+            taxEnabled: true,
+            trialExtended: false,
+            invoices: [],
+            integrations: {
+              stripeEnabled: false,
+              razorpayEnabled: false,
+              zoomEnabled: false,
+              googleClassroomEnabled: false,
+              smtpConfigured: false,
+            },
+          }));
+          setSchools(backendSchools);
+          return; // Skip local storage if API succeeds
+        }
+      } catch (err) {
+        console.error("Failed to fetch schools from API", err);
+      }
+      
+      // Fallback to local storage
+      try {
+        const savedSchools = localStorage.getItem("super_admin_schools_expanded");
+        if (savedSchools) setSchools(JSON.parse(savedSchools));
+      } catch (e) {
+        console.error("Local storage hydration failed", e);
+      }
+    };
 
+    fetchSchools();
+
+    try {
       const savedTickets = localStorage.getItem("super_admin_tickets");
       if (savedTickets) setSupportTickets(JSON.parse(savedTickets));
 
@@ -483,43 +535,72 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
   }, [activeImpersonation, isMounted]);
 
   // Handlers
-  const createSchool = (
+  const createSchool = async (
     newSch: Omit<School, "id" | "invoices" | "integrations" | "isVerified"> & {
       isVerified?: boolean;
     },
   ) => {
-    const id = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(
-      "",
-    );
-    const apiKey = `sk_live_${id.substring(0, 24)}`;
-    const schoolWithId: School = {
-      ...newSch,
-      id,
-      logoUrl:
-        newSch.logoUrl ||
-        "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=80&fit=crop&q=60",
-      isVerified: newSch.isVerified !== undefined ? newSch.isVerified : true,
-      apiKey,
-      invoices: [],
-      integrations: {
-        stripeEnabled: false,
-        razorpayEnabled: false,
-        zoomEnabled: false,
-        googleClassroomEnabled: false,
-        smtpConfigured: false,
-      },
-    };
-    setSchools((prev) => [schoolWithId, ...prev]);
-    toast.success("School Created Successfully!", {
-      description: `${schoolWithId.name} deployment has been initialized.`,
-    });
+    try {
+      const payload = {
+        name: newSch.name,
+        code: newSch.slug || newSch.name.substring(0, 3).toUpperCase(),
+        address: newSch.address,
+        contactEmail: newSch.adminEmail,
+        contactPhone: newSch.contact,
+      };
+      const response = await apiClient.post('/schools', payload);
+      
+      const id = response.data?.school?._id || Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      const apiKey = `sk_live_${id.substring(0, 24)}`;
+      const schoolWithId: School = {
+        ...newSch,
+        id,
+        logoUrl:
+          newSch.logoUrl ||
+          "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=80&fit=crop&q=60",
+        isVerified: newSch.isVerified !== undefined ? newSch.isVerified : true,
+        apiKey,
+        invoices: [],
+        integrations: {
+          stripeEnabled: false,
+          razorpayEnabled: false,
+          zoomEnabled: false,
+          googleClassroomEnabled: false,
+          smtpConfigured: false,
+        },
+      };
+      setSchools((prev) => [schoolWithId, ...prev]);
+      toast.success("School Created Successfully!", {
+        description: `${schoolWithId.name} deployment has been initialized.`,
+      });
+    } catch (err) {
+      console.error("Failed to create school", err);
+      toast.error("Failed to create school.");
+    }
   };
 
-  const updateSchool = (id: string, updates: Partial<School>) => {
-    setSchools((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
-    toast.success("School System Synchronized", {
-      description: "Instance modifications committed successfully.",
-    });
+  const updateSchool = async (id: string, updates: Partial<School>) => {
+    try {
+      const payload: any = {};
+      if (updates.name) payload.name = updates.name;
+      if (updates.slug) payload.code = updates.slug;
+      if (updates.address) payload.address = updates.address;
+      if (updates.adminEmail) payload.contactEmail = updates.adminEmail;
+      if (updates.contact) payload.contactPhone = updates.contact;
+      if (updates.status) payload.isActive = updates.status !== "Suspended" && updates.status !== "Blacklisted";
+
+      if (Object.keys(payload).length > 0) {
+        await apiClient.patch(`/schools/${id}`, payload);
+      }
+      
+      setSchools((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+      toast.success("School System Synchronized", {
+        description: "Instance modifications committed successfully.",
+      });
+    } catch (err) {
+      console.error("Failed to update school", err);
+      toast.error("Failed to update school.");
+    }
   };
 
   const verifySchool = (id: string) => {
@@ -552,12 +633,18 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const deleteSchool = (id: string) => {
-    const target = schools.find((s) => s.id === id);
-    setSchools((prev) => prev.filter((s) => s.id !== id));
-    toast.error("School Instance Purged", {
-      description: `${target?.name} data has been archived and retention policies scheduled.`,
-    });
+  const deleteSchool = async (id: string) => {
+    try {
+      await apiClient.delete(`/schools/${id}`);
+      const target = schools.find((s) => s.id === id);
+      setSchools((prev) => prev.filter((s) => s.id !== id));
+      toast.error("School Instance Purged", {
+        description: `${target?.name} data has been archived and retention policies scheduled.`,
+      });
+    } catch (err) {
+      console.error("Failed to delete school", err);
+      toast.error("Failed to delete school.");
+    }
   };
 
   const impersonateSchool = (id: string) => {

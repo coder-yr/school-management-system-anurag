@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Send, Bot, User, Trash2, BookOpen, PenTool, Sparkles, HelpCircle } from "lucide-react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
+
+const genId = () => Math.random().toString(36).substr(2, 9);
 
 export const Route = createFileRoute("/teacher/ai-hub")({
   head: () => ({ meta: [{ title: "AI Assistant · Campus OS" }] }),
@@ -20,8 +21,8 @@ const teacherBotResponses = [
 ];
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
+  const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
 
   const [aiOutput, setAiOutput] = useState("");
@@ -29,26 +30,22 @@ function Page() {
 
   const handleSend = () => {
     if (!input.trim()) return;
-    dispatch({
-      type: "ADD_CHAT_MESSAGE",
-      payload: {
+    const userMsg = {
         id: genId(),
         role: "user",
         content: input,
         timestamp: new Date().toLocaleTimeString(),
-      },
-    });
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTimeout(() => {
-      dispatch({
-        type: "ADD_CHAT_MESSAGE",
-        payload: {
+        const botMsg = {
           id: genId(),
           role: "assistant",
           content: teacherBotResponses[Math.floor(Math.random() * teacherBotResponses.length)],
           timestamp: new Date().toLocaleTimeString(),
-        },
-      });
+        };
+        setMessages((prev) => [...prev, botMsg]);
     }, 800);
   };
 
@@ -88,7 +85,7 @@ function Page() {
             title="Chat with Faculty AI"
             action={
               <button
-                onClick={() => dispatch({ type: "CLEAR_CHAT", payload: undefined })}
+                onClick={() => setMessages([])}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -97,19 +94,19 @@ function Page() {
             }
           >
             <div className="h-[420px] overflow-y-auto space-y-4 mb-4 pr-2 mt-2">
-              {store.chatMessages.length === 0 && (
+              {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-8">
                   <div className="grid h-14 w-14 place-items-center rounded-2xl bg-accent/10 text-accent mb-3">
                     <Bot className="h-7 w-7" />
                   </div>
-                  <div className="font-semibold">Hello, Mrs. Iyer! 👋</div>
+                  <div className="font-semibold">Hello, {user?.name || "Teacher"}! 👋</div>
                   <div className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
                     Ask me to draft study guides, write parent letters, recommend remedial
                     materials, or query student data!
                   </div>
                 </div>
               )}
-              {store.chatMessages.map((m) => (
+              {messages.map((m) => (
                 <div
                   key={m.id}
                   className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : ""}`}

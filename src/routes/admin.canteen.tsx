@@ -18,7 +18,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { genId } from "@/lib/store";
+
+const genId = () => Math.random().toString(36).substr(2, 9);
 
 export const Route = createFileRoute("/admin/canteen")({
   head: () => ({ meta: [{ title: "Canteen & Mess OS · Campus OS" }] }),

@@ -1,13 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, EmptyState } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect, useState } from "react";
 import { Megaphone, Calendar } from "lucide-react";
 
 export const Route = createFileRoute("/student/feed")({ component: Page });
 
 function Page() {
-  const { store } = useStore();
-  const visible = store.announcements.filter((a) => a.target === "all" || a.target === "students");
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiClient<any>("/notifications/announcements")
+      .then((res) => {
+        const all = res?.data || [];
+        setAnnouncements(all.filter((a: any) => a.target === "all" || a.target === "students"));
+      })
+      .catch(() => {});
+  }, []);
+
+  const visible = announcements;
 
   return (
     <div>

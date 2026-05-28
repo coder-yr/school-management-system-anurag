@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -20,7 +20,6 @@ export const Route = createFileRoute("/teacher/syllabus")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [selectedGrade, setSelectedGrade] = useState("Grade 10");
   const [selectedSubject, setSelectedSubject] = useState("Mathematics");
 
@@ -30,25 +29,39 @@ function Page() {
   const [showAddModule, setShowAddModule] = useState(false);
   const [newUnit, setNewUnit] = useState("");
   const [newTopics, setNewTopics] = useState("");
+  const [modules, setModules] = useState<any[]>([]);
 
-  // Filter modules
-  const modules = store.syllabusModules.filter(
-    (m) => m.grade === selectedGrade && m.subject === selectedSubject,
-  );
-
-  const completedCount = modules.filter((m) => m.completed).length;
-  const totalCount = modules.length;
-  const percentComplete = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-  const handleToggleComplete = (id: string, currentStatus: boolean) => {
-    dispatch({
-      type: "UPDATE_SYLLABUS_MODULE",
-      payload: { id, updates: { completed: !currentStatus } },
-    });
-    toast.success(currentStatus ? "Marked unit as incomplete" : "Marked unit as completed!");
+  const loadModules = async () => {
+    try {
+      const res = await apiClient<any>("/syllabus");
+      setModules(res?.data || []);
+    } catch {}
   };
 
-  const handleAddModule = (e: React.FormEvent) => {
+  useEffect(() => { loadModules(); }, []);
+
+  const filtered = modules.filter(
+    (m: any) => (!m.grade || m.grade === selectedGrade) && (!m.subject || m.subject === selectedSubject || (m.subject?.name || "") === selectedSubject),
+  );
+
+  const completedCount = filtered.filter((m: any) => m.completed).length;
+  const totalCount = filtered.length;
+  const percentComplete = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const handleToggleComplete = async (id: string, currentStatus: boolean) => {
+    try {
+      await apiClient(`/syllabus/${id}`, {
+        method: "PATCH",
+        data: { completed: !currentStatus },
+      });
+      setModules(prev => prev.map((m: any) => (m._id === id || m.id === id) ? { ...m, completed: !currentStatus } : m));
+      toast.success(currentStatus ? "Marked unit as incomplete" : "Marked unit as completed!");
+    } catch {
+      toast.error("Failed to update module");
+    }
+  };
+
+  const handleAddModule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUnit.trim()) {
       toast.error("Unit title is required");
@@ -60,20 +73,25 @@ function Page() {
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
 
-    const newModule = {
-      id: Math.random().toString(36).substring(2, 9),
-      subject: selectedSubject,
-      grade: selectedGrade,
-      unit: newUnit,
-      topics: topicsArray.length > 0 ? topicsArray : ["Introduction", "Core concepts"],
-      completed: false,
-    };
-
-    dispatch({ type: "ADD_SYLLABUS_MODULE", payload: newModule });
-    toast.success("New syllabus unit added!");
-    setNewUnit("");
-    setNewTopics("");
-    setShowAddModule(false);
+    try {
+      await apiClient("/syllabus", {
+        method: "POST",
+        data: {
+          unit: newUnit,
+          subject: selectedSubject,
+          grade: selectedGrade,
+          topics: topicsArray.length > 0 ? topicsArray : ["Introduction", "Core concepts"],
+          completed: false,
+        },
+      });
+      toast.success("New syllabus unit added!");
+      setNewUnit("");
+      setNewTopics("");
+      setShowAddModule(false);
+      loadModules();
+    } catch {
+      toast.error("Failed to add module");
+    }
   };
 
   const handleStepClick = (moduleId: string, stepIdx: number) => {
@@ -196,7 +214,7 @@ function Page() {
 
       {/* Units list */}
       <div className="space-y-4">
-        {modules.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="py-16 text-center rounded-xl border border-dashed border-border bg-card">
             <BookOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <div className="text-sm font-semibold">No syllabus modules defined</div>
@@ -205,9 +223,11 @@ function Page() {
             </div>
           </div>
         ) : (
-          modules.map((mod) => (
+          filtered.map((mod: any) => {
+            const modId = mod._id || mod.id;
+            return (
             <div
-              key={mod.id}
+              key={modId}
               className={`rounded-xl border p-5 shadow-sm transition-all bg-card ${
                 mod.completed
                   ? "border-[oklch(0.65_0.15_155)]/45 bg-[oklch(0.65_0.15_155)]/5"
@@ -217,7 +237,7 @@ function Page() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex gap-3">
                   <button
-                    onClick={() => handleToggleComplete(mod.id, mod.completed)}
+                    onClick={() => handleToggleComplete(modId, mod.completed)}
                     className="mt-0.5 text-muted-foreground hover:text-accent transition-colors"
                   >
                     {mod.completed ? (
@@ -232,10 +252,10 @@ function Page() {
                         mod.completed ? "line-through text-muted-foreground" : "text-foreground"
                       }`}
                     >
-                      {mod.unit}
+                      {mod.unit || mod.title}
                     </h4>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {mod.topics.map((t, idx) => (
+                      {(mod.topics || []).map((t: any, idx: number) => (
                         <span
                           key={idx}
                           className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground border border-border"
@@ -258,10 +278,10 @@ function Page() {
                     {mod.completed ? "Completed" : "In Progress"}
                   </span>
                   <button
-                    onClick={() => setExpandedModuleId(expandedModuleId === mod.id ? null : mod.id)}
+                    onClick={() => setExpandedModuleId(expandedModuleId === modId ? null : modId)}
                     className="h-8 w-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
                   >
-                    {expandedModuleId === mod.id ? (
+                    {expandedModuleId === modId ? (
                       <ChevronUp className="h-4 w-4" />
                     ) : (
                       <ChevronDown className="h-4 w-4" />
@@ -270,7 +290,7 @@ function Page() {
                 </div>
               </div>
 
-              {expandedModuleId === mod.id && (
+              {expandedModuleId === modId && (
                 <div className="mt-4 pt-4 border-t border-border animate-in fade-in slide-in-from-top-2">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-4 flex items-center justify-between">
                     <span>Lesson Plan Status Steps</span>
@@ -283,13 +303,13 @@ function Page() {
                     <div className="absolute top-4 left-8 right-8 h-0.5 bg-border -z-10" />
                     <div className="flex items-center justify-between">
                       {["Preparation", "Delivery", "Assessment", "Reflection"].map((step, idx) => {
-                        const currentStep = lessonSteps[mod.id] || 0;
+                        const currentStep = lessonSteps[modId] || 0;
                         const isCompleted = idx < currentStep || mod.completed;
                         const isActive = idx === currentStep && !mod.completed;
                         return (
                           <button
                             key={step}
-                            onClick={() => handleStepClick(mod.id, idx)}
+                            onClick={() => handleStepClick(modId, idx)}
                             className={`flex flex-col items-center gap-2 group outline-none`}
                           >
                             <div
@@ -320,7 +340,8 @@ function Page() {
                 </div>
               )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

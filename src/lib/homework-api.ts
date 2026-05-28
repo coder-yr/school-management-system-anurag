@@ -20,6 +20,13 @@ export async function fetchHomeworkItems() {
   return apiClient<any[]>("/homework");
 }
 
+export async function createHomeworkAssignment(data: any) {
+  return apiClient<any>("/homework", {
+    method: "POST",
+    data,
+  });
+}
+
 export async function submitHomeworkAssignment(homeworkId: string, remarks?: string) {
   const formData = new FormData();
   if (remarks?.trim()) formData.append("remarks", remarks);
@@ -31,6 +38,13 @@ export async function submitHomeworkAssignment(homeworkId: string, remarks?: str
   });
 
   return parseApiResponse<any>(response);
+}
+
+export async function gradeHomeworkSubmission(homeworkId: string, submissionId: string, score: number, feedback?: string) {
+  return apiClient<any>(`/homework/${homeworkId}/submissions/${submissionId}/grade`, {
+    method: "POST",
+    data: { score, feedback }
+  });
 }
 
 export async function fetchStudyMaterials() {

@@ -371,6 +371,8 @@ function RegisterPage() {
 
     if (true) { // useBackend
       setLoading(true);
+      const code = "SCH-2026-" + Math.floor(1000 + Math.random() * 9000);
+      setGeneratedSchoolId(code);
       try {
         await apiClient("/auth/register", {
           method: "POST",
@@ -379,7 +381,9 @@ function RegisterPage() {
             password: schoolPreReg.password,
             firstName: schoolPreReg.adminName.split(" ")[0] || schoolPreReg.adminName,
             lastName: schoolPreReg.adminName.split(" ").slice(1).join(" ") || "Admin",
-            role: "SUPER_ADMIN"
+            role: "SUPER_ADMIN",
+            schoolName: schoolPreReg.schoolName,
+            schoolCode: code,
           },
         });
 
@@ -425,9 +429,6 @@ function RegisterPage() {
   // Step 4 Complete Details
   const handleStep4Submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = schoolPreReg.schoolName.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    const code = "SCH-2026-" + Math.floor(1000 + Math.random() * 9000);
-    setGeneratedSchoolId(code);
     setSchoolStep(5);
     toast.success("School Profile Configured!", {
       description: "Your platform credentials are ready.",
@@ -452,7 +453,8 @@ function RegisterPage() {
             password: teacherForm.password,
             firstName: teacherForm.firstName,
             lastName: teacherForm.lastName,
-            role: "TEACHER"
+            role: "TEACHER",
+            schoolCode: teacherForm.schoolCode,
           },
         });
 
@@ -494,7 +496,8 @@ function RegisterPage() {
             password: studentForm.password,
             firstName: studentForm.firstName,
             lastName: studentForm.lastName,
-            role: "STUDENT"
+            role: "STUDENT",
+            schoolCode: studentForm.schoolCode,
           },
         });
 
@@ -536,7 +539,8 @@ function RegisterPage() {
             password: parentForm.password,
             firstName: parentForm.guardianName || parentForm.fatherName || "Parent",
             lastName: parentForm.motherName || "Name",
-            role: "PARENT"
+            role: "PARENT",
+            schoolCode: parentForm.schoolCode,
           },
         });
 
@@ -1600,7 +1604,7 @@ function RegisterPage() {
                       toast.success(
                         `Welcome to ${schoolPreReg.schoolName}! Logging you in as School Admin.`,
                       );
-                      navigate({ to: "/super-admin/directory" });
+                      navigate({ to: "/admin" });
                     }}
                     className="rounded-xl px-6 gap-2"
                   >

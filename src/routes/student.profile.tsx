@@ -4,20 +4,16 @@ import { toast } from "sonner";
 import { User, Edit, Save } from "lucide-react";
 import { PageHeader, Panel } from "@/components/module-shell";
 import { useAuth } from "@/lib/auth-context";
-import { useStore } from "@/lib/store";
-import { DEMO_STUDENT_ID } from "@/lib/demo-ids";
 
 export const Route = createFileRoute("/student/profile")({ component: Page });
 
 function Page() {
   const { user, updateProfile } = useAuth();
-  const { store } = useStore();
-  const student = store.students.find((s) => s.id === DEMO_STUDENT_ID);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: user?.name || "",
-    phone: student?.phone || "",
-    address: student?.address || "",
+    phone: "",
+    address: "",
   });
 
   const handleSave = () => {
@@ -62,9 +58,9 @@ function Page() {
             <Panel title="Quick Stats">
               <div className="space-y-2 text-sm">
                 {[
-                  ["Attendance", `${student?.attendance || 92}%`],
-                  ["Fees Due", `₹${(student?.feesDue || 0).toLocaleString()}`],
-                  ["Roll No", student?.rollNo || "1001"],
+                  ["Role", user?.role || "Student"],
+                  ["Email", user?.email || "—"],
+                  ["ID", user?.id?.slice(-6) || "—"],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between">
                     <span className="text-muted-foreground">{l}</span>
@@ -82,9 +78,9 @@ function Page() {
                 ["Full Name", "name", form.name],
                 ["Email", "email", user?.email || "", true],
                 ["Phone", "phone", form.phone],
-                ["Guardian", "guardian", student?.guardian || "", true],
+                ["Role", "role", user?.role || "", true],
                 ["Address", "address", form.address],
-                ["Grade", "grade", `${student?.grade}-${student?.section}`, true],
+                ["School", "school", user?.schoolId ? "Enrolled" : "—", true],
               ].map(([label, key, value, disabled]) => (
                 <div key={key as string}>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">

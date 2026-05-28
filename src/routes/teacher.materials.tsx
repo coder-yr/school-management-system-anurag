@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { fetchStudyMaterials, uploadStudyMaterial } from "@/lib/homework-api";
@@ -21,7 +20,6 @@ export const Route = createFileRoute("/teacher/materials")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
 
   // Search & Filter state
@@ -55,7 +53,7 @@ function Page() {
     };
   }, []);
 
-  const materials = (apiMaterials.length ? apiMaterials : store.studyMaterials).filter((m) => {
+  const materials = apiMaterials.filter((m) => {
     const searchText = `${m.title || ""} ${m.subject || m.subjectId || ""}`.toLowerCase();
     const matchesSearch = searchText.includes(search.toLowerCase());
     const matchesGrade = gradeFilter === "all" || (m.grade || m.classId) === gradeFilter;
@@ -81,22 +79,6 @@ function Page() {
 
       await uploadStudyMaterial(formData);
 
-      const sizeText = type === "link" ? "URL" : type === "video" ? "15 mins" : size;
-      dispatch({
-        type: "ADD_STUDY_MATERIAL",
-        payload: {
-          id: genId(),
-          title,
-          subject,
-          grade,
-          type,
-          uploadedBy: user?.name || "Anita Iyer",
-          uploadDate: new Date().toISOString().split("T")[0],
-          size: sizeText,
-          downloaded: false,
-        },
-      });
-
       toast.success("Study material uploaded!", {
         description: `Added "${title}" under ${subject} (${grade}).`,
       });
@@ -104,6 +86,9 @@ function Page() {
       setTitle("");
       setFile(null);
       setShowAddForm(false);
+      
+      const newMaterials = await fetchStudyMaterials();
+      setApiMaterials(newMaterials || []);
     } catch (error) {
       toast.error("Upload failed", {
         description: error instanceof Error ? error.message : "Please try again.",

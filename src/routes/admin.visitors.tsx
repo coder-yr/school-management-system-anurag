@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Users,
@@ -15,97 +15,49 @@ import {
   Plus,
 } from "lucide-react";
 import { PageHeader, Panel, StatCard, EmptyState } from "@/components/module-shell";
-import { genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/visitors")({
   head: () => ({ meta: [{ title: "Visitor Management · Campus OS" }] }),
   component: VisitorsPage,
 });
 
-interface VisitorLog {
-  id: string;
-  name: string;
-  purpose: string;
-  host: string;
-  timeIn: string;
-  timeOut: string | null;
-  status: "Checked In" | "Checked Out" | "Blocked";
-}
-
-interface PreApproved {
-  id: string;
-  name: string;
-  relation: string;
-  validUntil: string;
-}
-
 function VisitorsPage() {
   const [tab, setTab] = useState<"logs" | "preapproved" | "blacklist">("logs");
   const [showGatePass, setShowGatePass] = useState(false);
   const [search, setSearch] = useState("");
 
-  const [logs, setLogs] = useState<VisitorLog[]>([
-    {
-      id: "v1",
-      name: "Ramesh Sharma",
-      purpose: "PTM Meeting",
-      host: "Mrs. Gupta (Grade 6)",
-      timeIn: "10:15 AM",
-      timeOut: null,
-      status: "Checked In",
-    },
-    {
-      id: "v2",
-      name: "Suresh Courier",
-      purpose: "Package Delivery",
-      host: "Admin Desk",
-      timeIn: "09:30 AM",
-      timeOut: "09:45 AM",
-      status: "Checked Out",
-    },
-    {
-      id: "v3",
-      name: "Unknown Vendor",
-      purpose: "Solicitation",
-      host: "None",
-      timeIn: "11:00 AM",
-      timeOut: "11:05 AM",
-      status: "Blocked",
-    },
-  ]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [preApproved, setPreApproved] = useState<any[]>([]);
+  const [blacklist, setBlacklist] = useState<any[]>([]);
 
-  const [preApproved, setPreApproved] = useState<PreApproved[]>([
-    {
-      id: "p1",
-      name: "Sunil Sharma",
-      relation: "Uncle (Aarav Sharma)",
-      validUntil: "Dec 31, 2026",
-    },
-    { id: "p2", name: "Kavita Das", relation: "Aunt (Rohan Das)", validUntil: "Dec 31, 2026" },
-  ]);
+  const fetchData = async () => {
+    try {
+      const [logsRes, preRes, blackRes] = await Promise.all([
+        apiClient<any>("/visitors/logs"),
+        apiClient<any>("/visitors/preapproved"),
+        apiClient<any>("/visitors/blacklist")
+      ]);
+      setLogs(logsRes?.data || []);
+      setPreApproved(preRes?.data || []);
+      setBlacklist(blackRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to load visitor data");
+    }
+  };
 
-  const [blacklist, setBlacklist] = useState([
-    {
-      id: "b1",
-      name: "Ravi Kumar",
-      reason: "Previous altercation at gate",
-      dateAdded: "Jan 12, 2026",
-    },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const handleCheckout = (id: string) => {
-    setLogs((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              timeOut: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              status: "Checked Out",
-            }
-          : l,
-      ),
-    );
-    toast.success("Visitor Checked Out successfully.");
+  const handleCheckout = async (id: string) => {
+    try {
+      await apiClient(`/visitors/logs/${id}/checkout`, { method: "PUT" });
+      toast.success("Visitor Checked Out successfully.");
+      fetchData();
+    } catch (err) {
+      toast.error("Failed to checkout visitor");
+    }
   };
 
   const handleNotifyHost = (host: string) => {
@@ -116,8 +68,8 @@ function VisitorsPage() {
 
   const filteredLogs = logs.filter(
     (l) =>
-      l.name.toLowerCase().includes(search.toLowerCase()) ||
-      l.purpose.toLowerCase().includes(search.toLowerCase()),
+      l.name?.toLowerCase().includes(search.toLowerCase()) ||
+      l.purpose?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -203,14 +155,14 @@ function VisitorsPage() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {filteredLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-muted/40 transition-colors">
+                      <tr key={log._id || log.id} className="hover:bg-muted/40 transition-colors">
                         <td className="py-3.5 pr-4">
                           <div className="font-semibold text-foreground">{log.name}</div>
                           <div className="text-[10px] text-muted-foreground">{log.purpose}</div>
                         </td>
                         <td className="py-3.5 px-4 font-medium">{log.host}</td>
-                        <td className="py-3.5 px-4 font-mono text-xs">{log.timeIn}</td>
-                        <td className="py-3.5 px-4 font-mono text-xs">{log.timeOut || "--:--"}</td>
+                        <td className="py-3.5 px-4 font-mono text-xs">{new Date(log.timeIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td className="py-3.5 px-4 font-mono text-xs">{log.timeOut ? new Date(log.timeOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "--:--"}</td>
                         <td className="py-3.5 px-4">
                           <span
                             className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
@@ -295,7 +247,7 @@ function VisitorsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {preApproved.map((p) => (
               <div
-                key={p.id}
+                key={p._id || p.id}
                 className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-2"
               >
                 <div className="flex justify-between items-start">
@@ -306,7 +258,7 @@ function VisitorsPage() {
                   <ShieldCheck className="h-5 w-5 text-emerald-500" />
                 </div>
                 <div className="pt-2 border-t border-border/50 flex justify-between items-center text-[10px]">
-                  <span className="text-muted-foreground font-mono">Valid: {p.validUntil}</span>
+                  <span className="text-muted-foreground font-mono">Valid: {new Date(p.validUntil).toLocaleDateString()}</span>
                   <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 font-bold px-2 py-0.5 rounded uppercase">
                     Verified
                   </span>
@@ -329,7 +281,7 @@ function VisitorsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {blacklist.map((b) => (
               <div
-                key={b.id}
+                key={b._id || b.id}
                 className="p-4 rounded-xl border border-destructive/20 bg-destructive/5 flex items-center gap-4"
               >
                 <div className="grid h-10 w-10 place-items-center rounded-full bg-destructive/10 text-destructive">
@@ -339,7 +291,7 @@ function VisitorsPage() {
                   <h4 className="font-bold text-foreground text-sm">{b.name}</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">Reason: {b.reason}</p>
                   <p className="text-[10px] text-muted-foreground mt-1 font-mono">
-                    Added: {b.dateAdded}
+                    Added: {new Date(b.dateAdded).toLocaleDateString()}
                   </p>
                 </div>
               </div>

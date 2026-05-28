@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { Calendar, AlertCircle, FileText, CheckCircle, Clock, XCircle, Send } from "lucide-react";
@@ -12,7 +12,6 @@ export const Route = createFileRoute("/teacher/leave")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
 
   // Form states
@@ -20,52 +19,52 @@ function Page() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [reason, setReason] = useState("");
+  const [myLeaves, setMyLeaves] = useState<any[]>([]);
 
-  const teacherName = user?.name || "Anita Iyer";
-  // Hardcoded teacher staff ID for mock purposes
-  const staffId = "STF-289";
+  const teacherName = user?.name || "Teacher";
 
-  // Filter leaves for this teacher
-  const myLeaves = store.leaveRequests.filter(
-    (r) => r.staffName === teacherName || r.staffId === staffId,
-  );
-
-  const stats = {
-    casualTaken:
-      myLeaves.filter((l) => l.type === "Casual Leave" && l.status === "approved").length * 2, // mock days estimation
-    sickTaken:
-      myLeaves.filter((l) => l.type === "Sick Leave" && l.status === "approved").length * 3,
-    pending: myLeaves.filter((l) => l.status === "pending").length,
+  const loadLeaves = async () => {
+    try {
+      const res = await apiClient<any>("/leaves/my");
+      setMyLeaves(res?.data || []);
+    } catch {}
   };
 
-  const handleApply = (e: React.FormEvent) => {
+  useEffect(() => { loadLeaves(); }, []);
+
+  const stats = {
+    casualTaken: myLeaves.filter((l: any) => (l.type || l.leaveType) === "Casual Leave" && l.status === "approved").length * 2,
+    sickTaken: myLeaves.filter((l: any) => (l.type || l.leaveType) === "Sick Leave" && l.status === "approved").length * 3,
+    pending: myLeaves.filter((l: any) => l.status === "pending").length,
+  };
+
+  const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!from || !to || !reason.trim()) {
       toast.error("Please fill in all fields.");
       return;
     }
 
-    const newRequest = {
-      id: genId(),
-      staffId,
-      staffName: teacherName,
-      type,
-      from,
-      to,
-      reason,
-      status: "pending" as const,
-      appliedOn: new Date().toISOString().split("T")[0],
-    };
-
-    dispatch({ type: "ADD_LEAVE_REQUEST", payload: newRequest });
-    toast.success("Leave application submitted!", {
-      description: "Your request is sent to the Principal for review.",
-    });
-
-    // Reset form
-    setFrom("");
-    setTo("");
-    setReason("");
+    try {
+      await apiClient("/leaves", {
+        method: "POST",
+        data: {
+          leaveType: type,
+          startDate: from,
+          endDate: to,
+          reason,
+        }
+      });
+      toast.success("Leave application submitted!", {
+        description: "Your request is sent to the Principal for review.",
+      });
+      setFrom("");
+      setTo("");
+      setReason("");
+      loadLeaves();
+    } catch {
+      toast.error("Failed to submit leave request");
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -256,13 +255,13 @@ function Page() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {[...myLeaves].reverse().map((leave) => (
-                      <tr key={leave.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="py-3.5 px-2 font-medium text-foreground">{leave.type}</td>
+                    {[...myLeaves].reverse().map((leave: any) => (
+                      <tr key={leave._id || leave.id} className="hover:bg-muted/50 transition-colors">
+                        <td className="py-3.5 px-2 font-medium text-foreground">{leave.type || leave.leaveType}</td>
                         <td className="py-3.5 px-2 text-muted-foreground whitespace-nowrap">
-                          {leave.from} to {leave.to}
+                          {new Date(leave.from || leave.startDate).toLocaleDateString()} to {new Date(leave.to || leave.endDate).toLocaleDateString()}
                         </td>
-                        <td className="py-3.5 px-2 text-muted-foreground">{leave.appliedOn}</td>
+                        <td className="py-3.5 px-2 text-muted-foreground">{new Date(leave.appliedOn || leave.createdAt).toLocaleDateString()}</td>
                         <td
                           className="py-3.5 px-2 text-foreground max-w-xs truncate"
                           title={leave.reason}

@@ -3,28 +3,40 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, X, FileText, Eye, CheckCircle, Clock } from "lucide-react";
 import { PageHeader, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { fetchHomeworkItems, createHomeworkAssignment, gradeHomeworkSubmission } from "@/lib/homework-api";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/teacher/assignments")({ component: Page });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
-  const myAssignments = store.assignments.filter(
-    (a) =>
-      a.createdBy === "Anita Iyer" ||
-      a.createdBy === "Rajesh Rao" ||
-      a.createdBy === "Sunita Singh",
-  );
-  const viewing = myAssignments.find((a) => a.id === viewId);
+  
+  const [assignments, setAssignments] = useState<any[]>([]);
 
-  const handleGrade = (assignmentId: string, submissionId: string, score: number) => {
-    dispatch({
-      type: "GRADE_SUBMISSION",
-      payload: { assignmentId, submissionId, score, feedback: "Good work!" },
-    });
-    toast.success("Submission graded");
+  const loadAssignments = async () => {
+    try {
+      const items = await fetchHomeworkItems();
+      setAssignments(items || []);
+    } catch (err) {
+      toast.error("Failed to load assignments");
+    }
+  };
+
+  useEffect(() => {
+    loadAssignments();
+  }, []);
+
+  const viewing = assignments.find((a) => a.id === viewId);
+
+  const handleGrade = async (assignmentId: string, submissionId: string, score: number) => {
+    try {
+      await gradeHomeworkSubmission(assignmentId, submissionId, score, "Good work!");
+      toast.success("Submission graded");
+      loadAssignments();
+    } catch (err) {
+      toast.error("Failed to grade submission");
+    }
   };
 
   return (
@@ -43,23 +55,23 @@ function Page() {
         }
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {myAssignments.map((a) => (
+        {assignments.map((a) => (
           <div
             key={a.id}
             className="rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all"
           >
             <div className="flex justify-between mb-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                {a.subject}
+                {a.subject?.name || a.subject}
               </span>
-              <span className="text-xs text-muted-foreground">Due {a.dueDate}</span>
+              <span className="text-xs text-muted-foreground">Due {new Date(a.dueDate || a.due_date).toLocaleDateString()}</span>
             </div>
             <div className="text-base font-semibold mb-1">{a.title}</div>
             <div className="text-sm text-muted-foreground mb-3">{a.description}</div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{a.submissions.length} submissions</span>
-                <span>{a.submissions.filter((s) => s.status === "graded").length} graded</span>
+                <span>{a.submissions?.length || 0} submissions</span>
+                <span>{(a.submissions || []).filter((s: any) => s.status === "graded" || s.status === "REVIEWED").length} graded</span>
               </div>
               <button
                 onClick={() => setViewId(a.id)}
@@ -71,7 +83,7 @@ function Page() {
             </div>
           </div>
         ))}
-        {myAssignments.length === 0 && (
+        {assignments.length === 0 && (
           <EmptyState
             icon={FileText}
             title="No assignments"
@@ -98,35 +110,35 @@ function Page() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            {viewing.submissions.length > 0 ? (
+            {viewing.submissions?.length > 0 ? (
               <div className="space-y-3">
-                {viewing.submissions.map((s) => (
+                {viewing.submissions.map((s: any) => (
                   <div key={s.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm">{s.studentName}</span>
+                      <span className="font-medium text-sm">{s.studentName || s.student_name}</span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${s.status === "graded" ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-accent/10 text-accent"}`}
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${(s.status === "graded" || s.status === "REVIEWED") ? "bg-[oklch(0.65_0.15_155)]/15 text-[oklch(0.45_0.15_155)]" : "bg-accent/10 text-accent"}`}
                       >
-                        {s.status === "graded" ? `${s.score}/${viewing.maxScore}` : "Pending"}
+                        {(s.status === "graded" || s.status === "REVIEWED") ? `${s.score || s.marks}/${viewing.maxScore || viewing.max_score}` : "Pending"}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {s.submittedAt || "Not yet"}
-                      {s.files.length > 0 ? ` · ${s.files.join(", ")}` : ""}
+                      {new Date(s.submittedAt || s.submitted_at || new Date()).toLocaleString() || "Not yet"}
+                      {s.files?.length > 0 ? ` · ${s.files.join(", ")}` : (s.fileName ? ` · ${s.fileName}` : "")}
                     </div>
-                    {s.status !== "graded" && (
+                    {(s.status !== "graded" && s.status !== "REVIEWED") && (
                       <div className="mt-2 flex gap-2">
                         {[
-                          viewing.maxScore,
-                          Math.round(viewing.maxScore * 0.8),
-                          Math.round(viewing.maxScore * 0.6),
+                          viewing.maxScore || viewing.max_score || 100,
+                          Math.round((viewing.maxScore || viewing.max_score || 100) * 0.8),
+                          Math.round((viewing.maxScore || viewing.max_score || 100) * 0.6),
                         ].map((score) => (
                           <button
                             key={score}
                             onClick={() => handleGrade(viewing.id, s.id, score)}
                             className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted transition-all"
                           >
-                            {score}/{viewing.maxScore}
+                            {score}/{viewing.maxScore || viewing.max_score || 100}
                           </button>
                         ))}
                       </div>
@@ -164,26 +176,24 @@ function Page() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
-                dispatch({
-                  type: "ADD_ASSIGNMENT",
-                  payload: {
-                    id: genId(),
+                try {
+                  await createHomeworkAssignment({
                     title: fd.get("title") as string,
-                    subject: fd.get("subject") as string,
-                    grade: "10",
+                    subjectId: "2222222222222222222222222",
+                    classId: "1111111111111111111111111",
                     description: fd.get("desc") as string,
                     dueDate: fd.get("due") as string,
-                    createdBy: "Anita Iyer",
-                    attachments: [],
                     maxScore: Number(fd.get("score")),
-                    submissions: [],
-                  },
-                });
-                toast.success("Assignment created");
-                setShowCreate(false);
+                  });
+                  toast.success("Assignment created");
+                  setShowCreate(false);
+                  loadAssignments();
+                } catch (err) {
+                  toast.error("Failed to create assignment");
+                }
               }}
               className="space-y-3"
             >

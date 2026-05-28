@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
 import { useAuth } from "@/lib/auth-context";
 import { createSocketClient, fetchConversations, fetchMessages, sendMessage, type ChatConversation, type ChatMessage } from "@/lib/chat-api";
 import { toast } from "sonner";
@@ -24,18 +23,20 @@ import {
   MonitorUp,
 } from "lucide-react";
 
+const genId = () => Math.random().toString(36).substr(2, 9);
+
 export const Route = createFileRoute("/teacher/messages")({
   head: () => ({ meta: [{ title: "Messages & Notices · Campus OS" }] }),
   component: Page,
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"direct" | "notices">("direct");
 
   // -- Compose State for Notices --
+  const [announcementsStore, setAnnouncementsStore] = useState<any[]>([]);
   const [showCompose, setShowCompose] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -44,7 +45,7 @@ function Page() {
   const [search, setSearch] = useState("");
   const [targetFilter, setTargetFilter] = useState("all");
 
-  const announcements = store.announcements.filter((a) => {
+  const announcements = announcementsStore.filter((a) => {
     const matchesSearch =
       a.title.toLowerCase().includes(search.toLowerCase()) ||
       a.content.toLowerCase().includes(search.toLowerCase());
@@ -63,13 +64,13 @@ function Page() {
       id: genId(),
       title,
       content,
-      author: user?.name || "Anita Iyer",
+      author: user?.name || "Teacher",
       date: new Date().toISOString().split("T")[0],
       target,
       priority,
     };
 
-    dispatch({ type: "ADD_ANNOUNCEMENT", payload: newAnnouncement });
+    setAnnouncementsStore((prev) => [newAnnouncement, ...prev]);
     toast.success("Notice published successfully!", {
       description: `Announcement targeted to ${target} is now active.`,
     });
@@ -574,7 +575,7 @@ function Page() {
                         </span>
                         <button
                           onClick={() => {
-                            dispatch({ type: "DELETE_ANNOUNCEMENT", payload: ann.id });
+                            setAnnouncementsStore(prev => prev.filter(a => a.id !== ann.id));
                             toast.success("Notice deleted.");
                           }}
                           className="text-xs text-destructive hover:underline"

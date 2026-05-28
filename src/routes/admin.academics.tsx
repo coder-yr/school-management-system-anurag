@@ -15,7 +15,8 @@ import {
   Zap,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, EmptyState } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/admin/academics")({
   head: () => ({ meta: [{ title: "Academics · Campus OS" }] }),
@@ -23,96 +24,51 @@ export const Route = createFileRoute("/admin/academics")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [tab, setTab] = useState<"syllabus" | "leads" | "timetable">("syllabus");
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Leads CRM State
-  const [leads, setLeads] = useState([
-    {
-      id: "l1",
-      studentName: "Rohan Kapoor",
-      grade: "Grade 9",
-      parentName: "Anil Kapoor",
-      phone: "+91 98765 43210",
-      status: "contacted",
-      callbackDate: "2026-05-22",
-    },
-    {
-      id: "l2",
-      studentName: "Siddharth Malhotra",
-      grade: "Grade 11",
-      parentName: "Karan Malhotra",
-      phone: "+91 87654 32109",
-      status: "prospect",
-      callbackDate: "2026-05-24",
-    },
-    {
-      id: "l3",
-      studentName: "Kiara Advani",
-      grade: "Grade 10",
-      parentName: "Jagdeep Advani",
-      phone: "+91 76543 21098",
-      status: "enrolled",
-      callbackDate: "2026-05-20",
-    },
-    {
-      id: "l4",
-      studentName: "Ranbir Kapoor",
-      grade: "Grade 12",
-      parentName: "Rishi Kapoor",
-      phone: "+91 65432 10987",
-      status: "interview-scheduled",
-      callbackDate: "2026-05-23",
-    },
-  ]);
+  const [leads, setLeads] = useState<any[]>([]);
 
   // Timetabling State
-  const [schedules, setSchedules] = useState([
-    {
-      id: "s1",
-      day: "Monday",
-      time: "09:00 AM",
-      teacher: "Dr. Roy",
-      room: "Room 101",
-      subject: "Mathematics",
-    },
-    {
-      id: "s2",
-      day: "Monday",
-      time: "10:00 AM",
-      teacher: "Prof. Sharma",
-      room: "Room 102",
-      subject: "Physics",
-    },
-    {
-      id: "s3",
-      day: "Tuesday",
-      time: "09:00 AM",
-      teacher: "Dr. Roy",
-      room: "Room 101",
-      subject: "Calculus",
-    },
-  ]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  
+  // Syllabus & Subjects State
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [syllabusModules, setSyllabusModules] = useState<any[]>([]);
+
+  const fetchData = async () => {
+    try {
+      const [leadsRes, ttRes, subRes, sylRes] = await Promise.all([
+        apiClient<any>("/academics/leads"),
+        apiClient<any>("/academics/timetable"),
+        apiClient<any>("/academics/subjects"),
+        apiClient<any>("/academics/syllabus")
+      ]);
+      setLeads(leadsRes?.data || []);
+      setSchedules(ttRes?.data || []);
+      setSubjects(subRes?.data || []);
+      setSyllabusModules(sylRes?.data || []);
+    } catch (err) {
+      toast.error("Failed to fetch academic data");
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // Dynamic Clash Checking Input States
   const [clashAlert, setClashAlert] = useState<{
     type: "teacher" | "room" | "none";
     message: string;
   }>({ type: "none", message: "" });
-  const [testDay, setTestDay] = useState("Monday");
-  const [testTime, setTestTime] = useState("09:00 AM");
-  const [testTeacher, setTestTeacher] = useState("Dr. Roy");
-  const [testRoom, setTestRoom] = useState("Room 101");
 
-  const subjects = [...new Set(store.syllabusModules.map((s) => s.subject))];
-
-  const handleAddLead = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddLead = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const newLead = {
-      id: genId(),
       studentName: fd.get("studentName") as string,
       grade: fd.get("grade") as string,
       parentName: fd.get("parentName") as string,
@@ -120,12 +76,17 @@ function Page() {
       status: "prospect",
       callbackDate: fd.get("callback") as string,
     };
-    setLeads((prev) => [...prev, newLead]);
-    toast.success(`Lead successfully registered for ${newLead.studentName}!`);
-    setShowLeadModal(false);
+    try {
+      await apiClient("/academics/leads", { method: "POST", data: newLead });
+      toast.success(`Lead successfully registered for ${newLead.studentName}!`);
+      setShowLeadModal(false);
+      fetchData();
+    } catch (err) {
+      toast.error("Failed to add lead");
+    }
   };
 
-  const handleCheckClash = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCheckClash = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const day = fd.get("day") as string;
@@ -136,28 +97,36 @@ function Page() {
 
     // Check teacher clash
     const teacherConflict = schedules.find(
-      (s) => s.day === day && s.time === time && s.teacher === teacher,
+      (s) => s.dayOfWeek === day && s.startTime === time && s.teacherId?.user?.firstName === teacher,
     );
     // Check room clash
-    const roomConflict = schedules.find((s) => s.day === day && s.time === time && s.room === room);
+    const roomConflict = schedules.find((s) => s.dayOfWeek === day && s.startTime === time && s.room === room);
 
     if (teacherConflict) {
       setClashAlert({
         type: "teacher",
-        message: `CLASH ALERT: ${teacher} is already assigned to teach ${teacherConflict.subject} in ${teacherConflict.room} on ${day} at ${time}!`,
+        message: `CLASH ALERT: ${teacher} is already assigned to teach ${teacherConflict.subjectId?.name || "a subject"} in ${teacherConflict.room} on ${day} at ${time}!`,
       });
       toast.error(`Scheduling Conflict: ${teacher} is busy!`);
     } else if (roomConflict) {
       setClashAlert({
         type: "room",
-        message: `CLASH ALERT: ${room} is already booked for ${roomConflict.subject} by ${roomConflict.teacher} on ${day} at ${time}!`,
+        message: `CLASH ALERT: ${room} is already booked on ${day} at ${time}!`,
       });
       toast.error(`Scheduling Conflict: ${room} is occupied!`);
     } else {
       setClashAlert({ type: "none", message: "" });
-      setSchedules((prev) => [...prev, { id: genId(), day, time, teacher, room, subject }]);
-      toast.success("Timetable slot scheduled successfully with no clashes!");
-      setShowScheduleModal(false);
+      try {
+        await apiClient("/academics/timetable", {
+          method: "POST",
+          data: { dayOfWeek: day, startTime: time, endTime: "N/A", teacherId: "000000000000000000000001", subjectId: "000000000000000000000001", classId: "000000000000000000000001", room }
+        });
+        toast.success("Timetable slot scheduled successfully with no clashes!");
+        setShowScheduleModal(false);
+        fetchData();
+      } catch (err) {
+        toast.error("Failed to schedule timetable");
+      }
     }
   };
 
@@ -206,12 +175,13 @@ function Page() {
       {tab === "syllabus" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {subjects.map((sub) => {
-            const modules = store.syllabusModules.filter((m) => m.subject === sub);
+            const modules = syllabusModules.filter((m) => m.subjectId?._id === sub._id);
             const completed = modules.filter((m) => m.completed).length;
+            const progress = modules.length > 0 ? (completed / modules.length) * 100 : 0;
             return (
               <Panel
-                key={sub}
-                title={sub}
+                key={sub._id}
+                title={sub.name}
                 action={
                   <span className="text-xs text-muted-foreground font-medium">
                     {completed}/{modules.length} complete
@@ -222,14 +192,14 @@ function Page() {
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
                       className="h-full rounded-full bg-accent transition-all"
-                      style={{ width: `${(completed / modules.length) * 100}%` }}
+                      style={{ width: `${progress}%` }}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
                   {modules.map((m) => (
                     <div
-                      key={m.id}
+                      key={m._id}
                       className="flex items-center gap-3 rounded-lg border border-border p-3 bg-card"
                     >
                       <div
@@ -242,9 +212,9 @@ function Page() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{m.unit}</div>
+                        <div className="text-sm font-medium">{m.unitName}</div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {m.topics.join(", ")}
+                          {(m.topics || []).join(", ")}
                         </div>
                       </div>
                     </div>
@@ -283,7 +253,7 @@ function Page() {
               </thead>
               <tbody className="divide-y divide-border">
                 {leads.map((l) => (
-                  <tr key={l.id} className="hover:bg-muted/40 transition-colors">
+                  <tr key={l._id} className="hover:bg-muted/40 transition-colors">
                     <td className="py-3.5 pr-4">
                       <div className="font-semibold">{l.studentName}</div>
                       <div className="text-xs text-muted-foreground">{l.grade}</div>
@@ -303,19 +273,20 @@ function Page() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-xs font-medium text-muted-foreground">
-                      {l.callbackDate}
+                      {new Date(l.callbackDate).toLocaleDateString()}
                     </td>
                     <td className="py-3.5 pl-4 text-right space-x-2">
                       {l.status !== "enrolled" && (
                         <>
                           <button
-                            onClick={() => {
-                              setLeads((prev) =>
-                                prev.map((item) =>
-                                  item.id === l.id ? { ...item, status: "enrolled" } : item,
-                                ),
-                              );
-                              toast.success(`${l.studentName} successfully enrolled as a student!`);
+                            onClick={async () => {
+                              try {
+                                await apiClient(`/academics/leads/${l._id}`, { method: "PATCH", data: { status: "enrolled" } });
+                                fetchData();
+                                toast.success(`${l.studentName} successfully enrolled as a student!`);
+                              } catch (err) {
+                                toast.error("Failed to update status");
+                              }
                             }}
                             className="rounded bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-500/20"
                           >
@@ -324,7 +295,7 @@ function Page() {
                           <button
                             onClick={() => {
                               toast.success(
-                                `Callback scheduled notification sent to warden! Next contact: ${l.callbackDate}`,
+                                `Callback scheduled notification sent to warden! Next contact: ${new Date(l.callbackDate).toLocaleDateString()}`,
                               );
                             }}
                             className="rounded bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent hover:bg-accent/20"
@@ -433,22 +404,22 @@ function Page() {
               <div className="space-y-3">
                 {schedules.map((s) => (
                   <div
-                    key={s.id}
+                    key={s._id}
                     className="flex items-center justify-between p-3.5 rounded-lg border border-border bg-card"
                   >
                     <div className="flex items-center gap-3">
                       <div className="grid h-9 w-9 place-items-center rounded bg-accent/10 text-accent font-semibold font-mono text-xs">
-                        {s.day.slice(0, 3)}
+                        {s.dayOfWeek.slice(0, 3)}
                       </div>
                       <div>
-                        <div className="font-semibold text-sm">{s.subject}</div>
+                        <div className="font-semibold text-sm">{s.subjectId?.name || "Subject"}</div>
                         <div className="text-xs text-muted-foreground">
-                          {s.teacher} · {s.room}
+                          {s.teacherId?.user?.firstName || "Teacher"} · {s.room}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="font-bold text-sm text-foreground">{s.time}</span>
+                      <span className="font-bold text-sm text-foreground">{s.startTime} - {s.endTime}</span>
                     </div>
                   </div>
                 ))}

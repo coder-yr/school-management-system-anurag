@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Send, Bot, User, Trash2 } from "lucide-react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+
+const genId = () => Math.random().toString(36).substr(2, 9);
 
 export const Route = createFileRoute("/student/ai-hub")({ component: Page });
 
@@ -16,31 +17,27 @@ const botResponses = [
 ];
 
 function Page() {
-  const { store, dispatch } = useStore();
+  const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState("");
 
   const handleSend = () => {
     if (!input.trim()) return;
-    dispatch({
-      type: "ADD_CHAT_MESSAGE",
-      payload: {
+    const userMsg = {
         id: genId(),
         role: "user",
         content: input,
         timestamp: new Date().toLocaleTimeString(),
-      },
-    });
+    };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTimeout(() => {
-      dispatch({
-        type: "ADD_CHAT_MESSAGE",
-        payload: {
+        const botMsg = {
           id: genId(),
           role: "assistant",
           content: botResponses[Math.floor(Math.random() * botResponses.length)],
           timestamp: new Date().toLocaleTimeString(),
-        },
-      });
+        };
+        setMessages((prev) => [...prev, botMsg]);
     }, 800);
   };
 
@@ -51,7 +48,7 @@ function Page() {
         subtitle="Your intelligent campus support chatbot (AI-01)"
         actions={
           <button
-            onClick={() => dispatch({ type: "CLEAR_CHAT", payload: undefined })}
+            onClick={() => setMessages([])}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -61,43 +58,41 @@ function Page() {
       />
       <div className="max-w-2xl">
         <Panel title="Chat with Campus AI">
-          <div className="h-96 overflow-y-auto space-y-3 mb-4 pr-2">
-            {store.chatMessages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-accent/10 text-accent mb-3">
-                  <Bot className="h-7 w-7" />
-                </div>
-                <div className="font-semibold">Hi Aarav! 👋</div>
-                <div className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  I'm your AI assistant. Ask me about your classes, attendance, fees, or anything
-                  else!
-                </div>
+          <div className="flex-1 space-y-4 overflow-y-auto p-4 max-h-[500px]">
+            {messages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
+                <Bot className="mb-2 h-8 w-8 opacity-50" />
+                <p className="text-sm">Hi there! Ask me anything about your campus life.</p>
               </div>
-            )}
-            {store.chatMessages.map((m) => (
-              <div key={m.id} className={`flex gap-2 ${m.role === "user" ? "justify-end" : ""}`}>
-                {m.role === "assistant" && (
-                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
-                    <Bot className="h-3.5 w-3.5" />
-                  </div>
-                )}
+            ) : (
+              messages.map((msg) => (
                 <div
-                  className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
+                  key={msg.id}
+                  className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}
                 >
-                  {m.content}
+                  {msg.role === "assistant" && (
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
+                      <Bot className="h-3.5 w-3.5" />
+                    </div>
+                  )}
                   <div
-                    className={`text-[10px] mt-1 ${m.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"}`}
+                    className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
                   >
-                    {m.timestamp}
+                    {msg.content}
+                    <div
+                      className={`text-[10px] mt-1 ${msg.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"}`}
+                    >
+                      {msg.timestamp}
+                    </div>
                   </div>
+                  {msg.role === "user" && (
+                    <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                      <User className="h-3.5 w-3.5" />
+                    </div>
+                  )}
                 </div>
-                {m.role === "user" && (
-                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                    <User className="h-3.5 w-3.5" />
-                  </div>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <form
             onSubmit={(e) => {

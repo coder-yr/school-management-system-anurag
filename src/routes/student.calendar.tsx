@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { CalendarDays, GraduationCap, PartyPopper, Sun, Clock } from "lucide-react";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/student/calendar")({ component: Page });
 
@@ -14,9 +13,13 @@ const typeConfig = {
 };
 
 function Page() {
-  const { store } = useStore();
   const [month] = useState(4); // May = 4
-  const events = store.calendarEvents;
+  const events = [
+    { id: "ev-1", title: "Math Exam", date: "2025-05-14", type: "exam" as const, description: "Chapters 1-5" },
+    { id: "ev-2", title: "Sports Day", date: "2025-05-20", type: "event" as const, description: "Annual sports event" },
+    { id: "ev-3", title: "Summer Break Starts", date: "2025-05-31", type: "holiday" as const, description: "Summer vacation" },
+    { id: "ev-4", title: "Project Submission", date: "2025-05-22", type: "deadline" as const, description: "Science project" },
+  ];
   const daysInMonth = 31;
   const firstDay = 3; // May 2025 starts on Thursday
 

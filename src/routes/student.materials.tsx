@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Download, FileText, Film, File } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
 import { fetchStudyMaterials } from "@/lib/homework-api";
 
 export const Route = createFileRoute("/student/materials")({ component: Page });
@@ -11,7 +10,6 @@ export const Route = createFileRoute("/student/materials")({ component: Page });
 const icons = { pdf: FileText, video: Film, doc: File, link: FileText };
 
 function Page() {
-  const { store, dispatch } = useStore();
   const [apiMaterials, setApiMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,12 +32,9 @@ function Page() {
     };
   }, []);
 
-  const materials = apiMaterials.length
-    ? apiMaterials
-    : store.studyMaterials.filter((m) => m.grade === "10");
+  const materials = apiMaterials;
 
-  const handleDownload = (id: string, title: string) => {
-    dispatch({ type: "UPDATE_STUDY_MATERIAL", payload: { id, updates: { downloaded: true } } });
+  const handleDownload = (_id: string, title: string) => {
     toast.success("Downloaded", { description: title });
   };
 

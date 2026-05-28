@@ -1,17 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 import { Search, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/teacher/reports")({ component: Page });
 
 function Page() {
-  const { store } = useStore();
   const [search, setSearch] = useState("");
-  const students = store.students.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const [allStudents, setAllStudents] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiClient<any>("/users?role=STUDENT")
+      .then((res) => setAllStudents(res?.data || []))
+      .catch(() => {});
+  }, []);
+
+  const students = allStudents.filter((s: any) => {
+    const name = `${s.user?.firstName || s.firstName || ""} ${s.user?.lastName || s.lastName || ""}`.toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
 
   const getTrend = (att: number) =>
     att >= 85
@@ -33,36 +41,39 @@ function Page() {
         />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {students.map((s) => {
-          const trend = getTrend(s.attendance);
+        {students.map((s: any) => {
+          const name = `${s.user?.firstName || s.firstName || "?"} ${s.user?.lastName || s.lastName || ""}`.trim();
+          const rollNo = s.rollNumber || s.admissionNumber || "—";
+          const grade = s.classDetails?.name || s.class || "—";
+          const section = s.sectionDetails?.name || s.section || "";
+          const attendance = s.attendance || 0;
+          const feesDue = s.feesDue || 0;
+          const trend = getTrend(attendance);
           const Icon = trend.icon;
           return (
             <div
-              key={s.id}
+              key={s._id || s.id}
               className="rounded-xl border border-border bg-card p-5 shadow-sm hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
-                  {s.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
+                  {name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                 </div>
                 <div>
-                  <div className="font-semibold text-sm">{s.name}</div>
+                  <div className="font-semibold text-sm">{name}</div>
                   <div className="text-xs text-muted-foreground">
-                    Grade {s.grade}-{s.section} · #{s.rollNo}
+                    {grade}{section ? `-${section}` : ""} · #{rollNo}
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-lg bg-muted p-2">
                   <div className="text-xs text-muted-foreground">Attendance</div>
-                  <div className="font-semibold">{s.attendance}%</div>
+                  <div className="font-semibold">{attendance}%</div>
                 </div>
                 <div className="rounded-lg bg-muted p-2">
                   <div className="text-xs text-muted-foreground">Fees Due</div>
-                  <div className="font-semibold">₹{s.feesDue.toLocaleString()}</div>
+                  <div className="font-semibold">₹{feesDue.toLocaleString()}</div>
                 </div>
               </div>
               <div className={`mt-3 flex items-center gap-1.5 text-xs font-medium ${trend.color}`}>

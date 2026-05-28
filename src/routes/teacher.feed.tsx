@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, Panel } from "@/components/module-shell";
-import { useStore, genId } from "@/lib/store";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Megaphone, Calendar, Send, Award, CalendarClock, MessageSquare } from "lucide-react";
 
@@ -12,29 +12,42 @@ export const Route = createFileRoute("/teacher/feed")({
 });
 
 function Page() {
-  const { store, dispatch } = useStore();
   const { user } = useAuth();
   const [quickPost, setQuickPost] = useState("");
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  const visible = store.announcements.filter((a) => a.target === "all" || a.target === "teachers");
+  const loadAnnouncements = async () => {
+    try {
+      const res = await apiClient<any>("/notifications/announcements");
+      const all = res?.data || [];
+      setAnnouncements(all.filter((a: any) => a.target === "all" || a.target === "teachers"));
+    } catch {}
+  };
 
-  const handleQuickSubmit = (e: React.FormEvent) => {
+  useEffect(() => { loadAnnouncements(); }, []);
+
+  const visible = announcements;
+
+  const handleQuickSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickPost.trim()) return;
 
-    const newAnnouncement = {
-      id: genId(),
-      title: "Teacher Quick Update",
-      content: quickPost,
-      author: user?.name || "Anita Iyer",
-      date: new Date().toISOString().split("T")[0],
-      target: "all" as const,
-      priority: "normal" as const,
-    };
-
-    dispatch({ type: "ADD_ANNOUNCEMENT", payload: newAnnouncement });
-    toast.success("Post shared to public feed!");
-    setQuickPost("");
+    try {
+      await apiClient("/notifications/announcements", {
+        method: "POST",
+        data: {
+          title: "Teacher Quick Update",
+          content: quickPost,
+          target: "all",
+          priority: "normal",
+        }
+      });
+      toast.success("Post shared to public feed!");
+      setQuickPost("");
+      loadAnnouncements();
+    } catch {
+      toast.error("Failed to post");
+    }
   };
 
   return (
