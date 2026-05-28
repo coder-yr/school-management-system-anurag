@@ -1,6 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { NotificationService } from '../services/notification.service.js';
 import { sendResponse } from '../utils/response.js';
+import { Announcement } from '../models/Announcement.js';
+import { Types } from 'mongoose';
 
 export class NotificationController {
   static async sendNotification(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -75,6 +77,61 @@ export class NotificationController {
       const userId = req.user?.id as string;
       const notification = await NotificationService.markAsRead(notificationId, userId);
       sendResponse(res, 200, 'Notification marked as read', notification);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getAnnouncements(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || '000000000000000000000001';
+      const sId = new Types.ObjectId(schoolId as string);
+      const announcements = await Announcement.find({ schoolId: sId }).sort({ publishedDate: -1 });
+      const formatted = announcements.map(a => ({
+        id: a._id.toString(),
+        title: a.title,
+        content: a.content,
+        target: (a.targetAudience || 'ALL').toLowerCase(),
+        priority: 'normal',
+        author: 'Admin',
+        date: a.publishedDate ? new Date(a.publishedDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        created_at: (a as any).createdAt,
+      }));
+      sendResponse(res, 200, 'Announcements retrieved', formatted);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async createAnnouncement(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || '000000000000000000000001';
+      const sId = new Types.ObjectId(schoolId as string);
+      const { title, content, target, priority } = req.body;
+      const targetMap: Record<string, string> = { all: 'ALL', students: 'STUDENTS', teachers: 'TEACHERS', parents: 'PARENTS' };
+      const announcement = new Announcement({
+        schoolId: sId,
+        title,
+        content,
+        targetAudience: targetMap[target] || 'ALL',
+        publishedDate: new Date(),
+        createdBy: new Types.ObjectId(req.user?.id || '000000000000000000000001'),
+        updatedBy: new Types.ObjectId(req.user?.id || '000000000000000000000001'),
+      });
+      await announcement.save();
+      sendResponse(res, 201, 'Announcement created', announcement);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteAnnouncement(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || '000000000000000000000001';
+      const sId = new Types.ObjectId(schoolId as string);
+      const { id } = req.params;
+      await Announcement.findOneAndDelete({ schoolId: sId, _id: new Types.ObjectId(id as string) });
+      sendResponse(res, 200, 'Announcement deleted', null);
     } catch (error) {
       next(error);
     }

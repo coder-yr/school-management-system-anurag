@@ -12,6 +12,8 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(128),
   role: z.preprocess((val) => typeof val === "string" ? val.toUpperCase() : val, roleEnum).optional(),
   schoolId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid schoolId ObjectId").optional(),
+  schoolName: z.string().trim().min(1).optional(),
+  schoolCode: z.string().trim().min(1).optional(),
 }).refine((data) => {
   return !!(data.fullName || data.name || (data.firstName && data.lastName) || data.firstName);
 }, {

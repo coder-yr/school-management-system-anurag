@@ -25,4 +25,9 @@ notificationRouter.post(
 notificationRouter.get('/', NotificationController.listNotifications);
 notificationRouter.patch('/:notificationId/read', NotificationController.markAsRead);
 
+// Announcements
+notificationRouter.get('/announcements', NotificationController.getAnnouncements);
+notificationRouter.post('/announcements', requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'), NotificationController.createAnnouncement);
+notificationRouter.delete('/announcements/:id', requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN'), NotificationController.deleteAnnouncement);
+
 export default notificationRouter;

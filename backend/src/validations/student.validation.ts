@@ -4,8 +4,10 @@ export const admitStudentSchema = z.object({
   body: z.object({
     admissionNumber: z.string().min(1, 'Admission number is required'),
     rollNumber: z.string().optional(),
-    classId: z.string().min(24, 'Invalid class ID'),
-    sectionId: z.string().min(24, 'Invalid section ID'),
+    classId: z.string().optional(), // Now optional if grade is provided
+    sectionId: z.string().optional(), // Now optional if section is provided
+    grade: z.string().optional(),
+    section: z.string().optional(),
     dob: z.string().datetime('Invalid Date of Birth'),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
     bloodGroup: z.string().optional(),

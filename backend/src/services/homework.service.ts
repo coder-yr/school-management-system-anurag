@@ -47,6 +47,16 @@ export class HomeworkService {
     return HomeworkSubmission.find({ schoolId, homeworkId }).sort({ submittedAt: -1 });
   }
 
+  static async gradeSubmission(schoolId: string, homeworkId: string, submissionId: string, score: number, feedback: string) {
+    const submission = await HomeworkSubmission.findOneAndUpdate(
+      { _id: submissionId, schoolId, homeworkId },
+      { status: 'REVIEWED', marks: score, remarks: feedback },
+      { new: true }
+    );
+    if (!submission) throw new ApiError(404, 'Submission not found');
+    return submission;
+  }
+
   static async uploadStudyMaterial(schoolId: string, teacherId: string, data: any, file: Express.Multer.File) {
     const uploadResult = await uploadToStorage(file, 'study-materials');
     return StudyMaterial.create({

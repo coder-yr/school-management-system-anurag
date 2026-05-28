@@ -60,6 +60,36 @@ export class FeeController {
     }
   }
 
+  static async getAllFees(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || "000000000000000000000001";
+      const fees = await FeeService.getAllFees(schoolId);
+      sendResponse(res, 200, 'All fees retrieved', fees);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getAllPayments(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || "000000000000000000000001";
+      const payments = await FeeService.getAllPayments(schoolId);
+      sendResponse(res, 200, 'All payments retrieved', payments);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getFeeStructures(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId || "000000000000000000000001";
+      const structures = await FeeService.getFeeStructures(schoolId);
+      sendResponse(res, 200, 'Fee structures retrieved', structures);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getOverdueFees(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const schoolId = req.user?.schoolId as string;

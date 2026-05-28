@@ -4,6 +4,9 @@ import { User } from '../models/User.js';
 import { Parent } from '../models/Parent.js';
 import { StudentDocument } from '../models/StudentDocument.js';
 import { ApiError } from '../utils/api-error.js';
+import { runInTransaction } from '../utils/transaction.js';
+import { hashPassword } from '../utils/password.js';
+import { resolveSchoolId } from '../utils/school.js';
 
 interface PaginationResult<T> {
   data: T[];
@@ -14,12 +17,11 @@ interface PaginationResult<T> {
 }
 
 export class StudentService {
-  static async admitStudent(schoolId: string, data: any): Promise<IStudent> {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
+  static async admitStudent(schoolIdStr: string, data: any): Promise<IStudent> {
+    const schoolId = await resolveSchoolId(schoolIdStr);
+    return runInTransaction(async (session) => {
       // 1. Check existing admission number
-      const existing = await Student.findOne({ schoolId, admissionNumber: data.admissionNumber, isDeleted: false }).session(session);
+      const existing = await Student.findOne({ schoolId, admissionNumber: data.admissionNumber, isDeleted: false }).session(session || null);
       if (existing) {
         throw new ApiError(409, 'Admission number already exists in this school');
       }
@@ -27,13 +29,14 @@ export class StudentService {
       // 2. Create Student User if requested
       let userId = null;
       if (data.studentUser) {
-        const userExists = await User.findOne({ email: data.studentUser.email }).session(session);
+        const userExists = await User.findOne({ email: data.studentUser.email }).session(session || null);
         if (userExists) throw new ApiError(409, 'Student email already in use');
 
+        const passwordHash = await hashPassword(data.studentUser.password);
         const newUser = new User({
           schoolId,
           email: data.studentUser.email,
-          password: data.studentUser.password, // Mongoose pre-save hooks will hash this
+          passwordHash,
           firstName: data.studentUser.firstName,
           lastName: data.studentUser.lastName,
           role: 'STUDENT',
@@ -54,36 +57,25 @@ export class StudentService {
         parentIds.push(...data.parentIds.map((id: string) => new Types.ObjectId(id)));
       }
 
-      if (data.newParents && data.newParents.length > 0) {
-        for (const p of data.newParents) {
-          // Check if parent user exists
-          let pUser = await User.findOne({ email: p.email }).session(session);
-          if (!pUser) {
-            pUser = new User({
-              schoolId,
-              email: p.email,
-              password: 'defaultPassword123', // Send email to parent to reset
-              firstName: p.firstName,
-              lastName: p.lastName,
-              role: 'PARENT',
-              isActive: true
-            });
-            await pUser.save({ session });
-          }
-          
-          let parentDoc = await Parent.findOne({ userId: pUser._id }).session(session);
-          if (!parentDoc) {
-             parentDoc = new Parent({
-               schoolId,
-               userId: pUser._id,
-               relationship: p.relationship,
-               occupation: p.occupation,
-               phone: p.phone
-             });
-             await parentDoc.save({ session });
-          }
-          parentIds.push(parentDoc._id as Types.ObjectId);
-        }
+      // Handle Class and Section creation automatically if string is provided
+      let classId = data.classId;
+      if (!classId && data.grade) {
+         let classDoc = await mongoose.model('Class').findOne({ schoolId, name: data.grade }).session(session || null);
+         if (!classDoc) {
+            classDoc = new (mongoose.model('Class'))({ schoolId, name: data.grade });
+            await classDoc.save({ session });
+         }
+         classId = classDoc._id;
+      }
+
+      let sectionId = data.sectionId;
+      if (!sectionId && data.section) {
+         let sectionDoc = await mongoose.model('Section').findOne({ schoolId, classId, name: data.section }).session(session || null);
+         if (!sectionDoc) {
+            sectionDoc = new (mongoose.model('Section'))({ schoolId, classId, name: data.section });
+            await sectionDoc.save({ session });
+         }
+         sectionId = sectionDoc._id;
       }
 
       // 4. Create Student
@@ -92,8 +84,8 @@ export class StudentService {
         userId,
         admissionNumber: data.admissionNumber,
         rollNumber: data.rollNumber,
-        classId: data.classId,
-        sectionId: data.sectionId,
+        classId,
+        sectionId,
         parentIds: [...new Set(parentIds)], // Ensure unique parent IDs
         dob: data.dob,
         gender: data.gender,
@@ -103,15 +95,8 @@ export class StudentService {
       });
 
       await student.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
       return student;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    });
   }
 
   static async getStudentProfile(schoolId: string, studentId: string): Promise<any> {

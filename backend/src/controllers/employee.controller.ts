@@ -5,7 +5,7 @@ import { sendResponse } from '../utils/response.js';
 export class EmployeeController {
   static async hireEmployee(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
       const employee = await EmployeeService.hireEmployee(schoolId, req.body);
       sendResponse(res, 201, 'Employee hired successfully', employee);
     } catch (error) {
@@ -15,7 +15,7 @@ export class EmployeeController {
 
   static async getEmployeeProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.query.schoolId || req.user?.schoolId) as string;
       const id = req.params.id as string;
       const employee = await EmployeeService.getEmployeeProfile(schoolId, id);
       sendResponse(res, 200, 'Employee profile retrieved successfully', employee);
@@ -26,7 +26,7 @@ export class EmployeeController {
 
   static async listEmployees(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.query.schoolId || req.user?.schoolId) as string;
       const { page, limit, search, isActive, employeeType, department } = req.query as any;
       const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined;
       const result = await EmployeeService.listEmployees(schoolId, {
@@ -45,7 +45,7 @@ export class EmployeeController {
 
   static async updateEmployee(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.query.schoolId || req.user?.schoolId) as string;
       const id = req.params.id as string;
       const employee = await EmployeeService.updateEmployee(schoolId, id, req.body);
       sendResponse(res, 200, 'Employee updated successfully', employee);
@@ -56,7 +56,7 @@ export class EmployeeController {
 
   static async markAttendance(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
       const userId = req.user?.id as string;
       const result = await EmployeeService.markAttendance(schoolId, userId, req.body);
       sendResponse(res, 200, 'Attendance marked successfully', result);
@@ -67,7 +67,7 @@ export class EmployeeController {
 
   static async requestLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
       const userId = req.user?.id as string;
       const leave = await EmployeeService.requestLeave(schoolId, userId, req.body);
       sendResponse(res, 201, 'Leave requested successfully', leave);
@@ -78,7 +78,7 @@ export class EmployeeController {
 
   static async reviewLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.query.schoolId || req.user?.schoolId) as string;
       const id = req.params.id as string;
       const userId = req.user?.id as string;
       const leave = await EmployeeService.reviewLeave(
@@ -96,7 +96,7 @@ export class EmployeeController {
 
   static async generateSalary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
       const salary = await EmployeeService.generateSalary(schoolId, req.body);
       sendResponse(res, 201, 'Salary generated successfully', salary);
     } catch (error) {
@@ -110,7 +110,7 @@ export class EmployeeController {
         sendResponse(res, 400, 'No file uploaded');
         return;
       }
-      const schoolId = req.user?.schoolId as string;
+      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
       const id = req.params.id as string;
       const documentType = req.body.documentType || 'OTHER';
       const doc = await EmployeeService.uploadDocument(schoolId, id, documentType, req.file);

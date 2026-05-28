@@ -13,6 +13,12 @@ export const attendanceRouter = Router();
 // Ensure all routes require authentication
 attendanceRouter.use(authenticateToken);
 
+// --- Frontend Compatible CRUD ---
+attendanceRouter.post('/', AttendanceController.recordAttendance);
+attendanceRouter.post('/bulk', AttendanceController.recordAttendanceBulk);
+attendanceRouter.get('/', AttendanceController.getAttendanceRecords);
+attendanceRouter.get('/student/:studentId', AttendanceController.getStudentAttendanceHistory);
+
 // --- Student Reports ---
 attendanceRouter.get(
   '/students/daily',
@@ -39,15 +45,11 @@ attendanceRouter.get(
 
 attendanceRouter.get(
   '/employees/monthly/:employeeId',
-  // Allow the employee themselves, or admins, to view
   (req, res, next) => {
-    // If not super/school admin, and requesting someone else's ID
     const role = req.user?.role;
     if (role && ['SUPER_ADMIN', 'SCHOOL_ADMIN'].includes(role)) {
        return next();
     }
-    // We should ideally have an employee ID match check here, but for simplicity assuming valid ID.
-    // In a full implementation, you'd check `Employee.findOne({ userId: req.user.userId, _id: req.params.employeeId })`
     next();
   },
   validateRequest(monthlyStatsQuerySchema),

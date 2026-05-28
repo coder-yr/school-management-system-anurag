@@ -41,6 +41,15 @@ const schoolSchema = new Schema<ISchool>(
   { timestamps: true }
 );
 
+// Pre-save middleware to log when a school is storing in db
+schoolSchema.pre('save', function() {
+  console.log(`[DATABASE SAVE] Attempting to store school in database. Name: "${this.name}", Code: "${this.code}"`);
+});
+
+schoolSchema.post('save', function(doc) {
+  console.log(`[DATABASE SAVE SUCCESS] Successfully stored school in database. ID: ${doc._id}, Name: "${doc.name}", Code: "${doc.code}"`);
+});
+
 // Indexes
 schoolSchema.index({ name: 1 });
 schoolSchema.index({ isActive: 1 });

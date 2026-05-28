@@ -1,5 +1,12 @@
 import { Schema, Document, Types } from 'mongoose';
 
+export interface IBaseDocument extends Document {
+  isDeleted: boolean;
+  deletedAt?: Date | null;
+  createdBy?: Types.ObjectId;
+  updatedBy?: Types.ObjectId;
+}
+
 export interface IAuditFields {
   isDeleted: boolean;
   deletedAt?: Date | null;

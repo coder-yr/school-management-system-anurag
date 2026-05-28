@@ -21,6 +21,12 @@ export const feeRouter = Router();
 feeRouter.use(authenticateToken);
 
 // --- Fee Structures & Invoices (Admins / Accountants) ---
+feeRouter.get(
+  '/structures',
+  requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'),
+  FeeController.getFeeStructures
+);
+
 feeRouter.post(
   '/structures',
   requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'),
@@ -40,6 +46,19 @@ feeRouter.patch(
   requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN'), // Only admins should give scholarships
   validateRequest(applyConcessionSchema),
   FeeController.applyConcession
+);
+
+// --- Global Fee Queries ---
+feeRouter.get(
+  '/',
+  requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'),
+  FeeController.getAllFees
+);
+
+feeRouter.get(
+  '/payments',
+  requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT'),
+  FeeController.getAllPayments
 );
 
 // --- Student Fee Queries ---

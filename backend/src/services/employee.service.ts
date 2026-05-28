@@ -6,6 +6,9 @@ import { LeaveRequest } from '../models/LeaveRequest.js';
 import { SalaryRecord } from '../models/SalaryRecord.js';
 import { EmployeeDocument } from '../models/EmployeeDocument.js';
 import { ApiError } from '../utils/api-error.js';
+import { runInTransaction } from '../utils/transaction.js';
+import { hashPassword } from '../utils/password.js';
+import { resolveSchoolId } from '../utils/school.js';
 
 interface PaginationResult<T> {
   data: T[];
@@ -16,22 +19,22 @@ interface PaginationResult<T> {
 }
 
 export class EmployeeService {
-  static async hireEmployee(schoolId: string, data: any): Promise<IEmployee> {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      const existing = await Employee.findOne({ schoolId, employeeId: data.employeeId, isDeleted: false }).session(session);
+  static async hireEmployee(schoolIdStr: string, data: any): Promise<IEmployee> {
+    const schoolId = await resolveSchoolId(schoolIdStr);
+    return runInTransaction(async (session) => {
+      const existing = await Employee.findOne({ schoolId, employeeId: data.employeeId, isDeleted: false }).session(session || null);
       if (existing) {
         throw new ApiError(409, 'Employee ID already exists');
       }
 
-      const userExists = await User.findOne({ email: data.user.email }).session(session);
+      const userExists = await User.findOne({ email: data.user.email }).session(session || null);
       if (userExists) throw new ApiError(409, 'Email already in use');
 
+      const passwordHash = await hashPassword(data.user.password);
       const newUser = new User({
         schoolId,
         email: data.user.email,
-        password: data.user.password,
+        passwordHash,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
         role: data.user.role,
@@ -53,14 +56,8 @@ export class EmployeeService {
       });
 
       await employee.save({ session });
-      await session.commitTransaction();
-      session.endSession();
       return employee;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    });
   }
 
   static async getEmployeeProfile(schoolId: string, id: string): Promise<any> {

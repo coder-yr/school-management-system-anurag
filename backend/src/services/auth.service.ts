@@ -4,6 +4,11 @@ import { ApiError } from "../utils/api-error.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../config/jwt.js";
 import { User, type IUser, type UserRole } from "../models/User.js";
+import { School } from "../models/School.js";
+import { Student } from "../models/Student.js";
+import { Parent } from "../models/Parent.js";
+import { Employee } from "../models/Employee.js";
+import { Types } from "mongoose";
 
 export interface RegisterInput {
   fullName: string;
@@ -11,6 +16,8 @@ export interface RegisterInput {
   password: string;
   role?: UserRole;
   schoolId?: string;
+  schoolName?: string;
+  schoolCode?: string;
 }
 
 export interface LoginInput {
@@ -52,30 +59,113 @@ export class AuthService {
 
     const passwordHash = await hashPassword(input.password);
     
-    // Split full name to first and last
     const nameParts = input.fullName.trim().split(/\s+/);
     const firstName = nameParts[0] || "User";
     const lastName = nameParts.slice(1).join(' ') || 'User';
+
+    // Resolve schoolId dynamically
+    let sId: Types.ObjectId;
+    console.log("--- REGISTRATION DEBUG ---");
+    console.log("Input payload:", JSON.stringify({ ...input, password: "[REDACTED]" }, null, 2));
+
+    if (input.schoolId) {
+      console.log("Using existing schoolId:", input.schoolId);
+      sId = new Types.ObjectId(input.schoolId);
+    } else if (input.role === 'SUPER_ADMIN' && input.schoolName) {
+      console.log("SUPER_ADMIN detected with schoolName:", input.schoolName);
+      // Create a new school for the super admin
+      const code = input.schoolCode || "SCH-2026-" + Math.floor(1000 + Math.random() * 9000);
+      console.log("Creating new School in MongoDB with code:", code);
+      
+      const school = await School.create({
+        name: input.schoolName,
+        code,
+        contactEmail: input.email,
+        isActive: true,
+      });
+      
+      console.log("Successfully created School in DB! School ID:", school._id.toString());
+      sId = school._id as Types.ObjectId;
+    } else if (input.schoolCode) {
+      console.log("Looking up school by code:", input.schoolCode);
+      const school = await School.findOne({ code: input.schoolCode });
+      if (!school) {
+        console.error("Failed to find school with code:", input.schoolCode);
+        throw new ApiError(404, "Invalid school code");
+      }
+      console.log("Found existing school with ID:", school._id.toString());
+      sId = school._id as Types.ObjectId;
+    } else {
+      console.log("Falling back to DEFAULT_SCH");
+      let school = await School.findOne({ code: 'DEFAULT_SCH' });
+      if (!school) {
+        school = await School.create({
+          name: 'Default International School',
+          code: 'DEFAULT_SCH',
+          contactEmail: 'contact@school.com',
+          isActive: true,
+        });
+      }
+      sId = school._id as Types.ObjectId;
+    }
+
+    const resolvedRole = input.role ?? "STUDENT";
 
     const user = (await User.create({
       firstName,
       lastName,
       email: input.email,
       passwordHash,
-      role: input.role ?? "STUDENT",
-      ...(input.schoolId ? { schoolId: input.schoolId } : {}),
+      role: resolvedRole,
+      schoolId: sId,
     })) as IUser & Document;
 
+    const uId = user._id as Types.ObjectId;
+
+    // Create sub-profile based on role
+    if (resolvedRole === 'STUDENT') {
+      const admissionNumber = `ADM_${Math.floor(100000 + Math.random() * 900000)}`;
+      await Student.create({
+        schoolId: sId,
+        userId: uId,
+        admissionNumber,
+        rollNumber: '1',
+        isActive: true,
+        createdBy: uId,
+        updatedBy: uId
+      });
+    } else if (resolvedRole === 'PARENT') {
+      await Parent.create({
+        schoolId: sId,
+        userId: uId,
+        contactPrimary: '9999999999',
+        createdBy: uId,
+        updatedBy: uId
+      });
+    } else if (resolvedRole === 'TEACHER' || resolvedRole === 'DRIVER' || resolvedRole === 'ACCOUNTANT') {
+      const employeeId = `EMP_${uId.toString().slice(-6).toUpperCase()}`;
+      await Employee.create({
+        schoolId: sId,
+        userId: uId,
+        employeeId,
+        employeeType: resolvedRole === 'TEACHER' ? 'TEACHING' : 'NON_TEACHING',
+        designation: resolvedRole,
+        joiningDate: new Date(),
+        isActive: true,
+        createdBy: uId,
+        updatedBy: uId
+      });
+    }
+
     const accessToken = signAccessToken({
-      sub: user._id.toString(),
+      sub: uId.toString(),
       email: user.email,
       fullName: input.fullName,
       role: user.role,
     });
 
-    const refreshToken = signRefreshToken({ sub: user._id.toString() });
+    const refreshToken = signRefreshToken({ sub: uId.toString() });
     
-    // Save refresh token to user document
     user.refreshToken = refreshToken;
     await user.save();
 
@@ -163,7 +253,6 @@ export class AuthService {
     const user = await User.findOne({ email: email.toLowerCase() });
     
     if (!user) {
-      // Return success even if not found to prevent email enumeration
       return { message: "If that email is registered, a password reset link has been sent." };
     }
 
@@ -174,8 +263,6 @@ export class AuthService {
     user.resetPasswordExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
     await user.save();
 
-    // In a real app, send an email here with `resetToken`.
-    // Returning it for development purposes only.
     return { 
       message: "If that email is registered, a password reset link has been sent.",
       resetToken 
@@ -198,7 +285,6 @@ export class AuthService {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     
-    // Invalidate existing sessions
     user.refreshToken = undefined;
     
     await user.save();

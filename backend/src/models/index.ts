@@ -22,3 +22,12 @@ export * from './Conversation.js';
 export * from './Message.js';
 export * from './Announcement.js';
 export * from './Notification.js';
+export * from './HostelRoom.js';
+export * from './HostelComplaint.js';
+export * from './HostelVisitor.js';
+export * from './TransportRoute.js';
+export * from './LibraryBook.js';
+export * from './BookCirculation.js';
+
+
+

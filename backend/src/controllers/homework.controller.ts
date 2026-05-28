@@ -48,6 +48,18 @@ export class HomeworkController {
     }
   }
 
+  static async gradeSubmission(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schoolId = req.user?.schoolId as string;
+      const { homeworkId, submissionId } = req.params;
+      const { score, feedback } = req.body;
+      const submission = await HomeworkService.gradeSubmission(schoolId, homeworkId as string, submissionId as string, score, feedback);
+      sendResponse(res, 200, 'Submission graded successfully', submission);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async uploadStudyMaterial(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const schoolId = req.user?.schoolId as string;

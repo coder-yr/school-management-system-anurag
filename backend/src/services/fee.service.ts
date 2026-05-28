@@ -8,6 +8,7 @@ import { FeeScholarship } from '../models/FeeScholarship.js';
 import { Payment } from '../models/Payment.js';
 import { Student } from '../models/Student.js';
 import { ApiError } from '../utils/api-error.js';
+import { runInTransaction } from '../utils/transaction.js';
 
 export class FeeService {
   static async createFeeStructure(schoolId: string, data: any) {
@@ -74,6 +75,18 @@ export class FeeService {
 
   static async getStudentPayments(schoolId: string, studentId: string) {
     return Payment.find({ schoolId, studentId }).sort({ paymentDate: -1 });
+  }
+
+  static async getAllFees(schoolId: string) {
+    return Fee.find({ schoolId }).populate('studentId').sort({ dueDate: 1 });
+  }
+
+  static async getAllPayments(schoolId: string) {
+    return Payment.find({ schoolId }).populate('studentId').sort({ paymentDate: -1 }).limit(100);
+  }
+
+  static async getFeeStructures(schoolId: string) {
+    return FeeStructure.find({ schoolId }).sort({ createdAt: -1 });
   }
 
   static async getOverdueFees(schoolId: string) {
@@ -260,9 +273,7 @@ export class FeeService {
       }
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
+    return runInTransaction(async (session) => {
       const paymentData = {
          amountPaid: data.amountPaid,
          paymentMethod: 'ONLINE',
@@ -270,30 +281,13 @@ export class FeeService {
          remarks: `Razorpay Order: ${data.razorpayOrderId}`
       };
 
-      const payment = await this.processPayment(schoolId, data.feeId, paymentData, session);
-      
-      await session.commitTransaction();
-      session.endSession();
-      return payment;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+      return this.processPayment(schoolId, data.feeId, paymentData, session);
+    });
   }
 
   static async recordManualPayment(schoolId: string, data: any) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      const payment = await this.processPayment(schoolId, data.feeId, data, session);
-      await session.commitTransaction();
-      session.endSession();
-      return payment;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
+    return runInTransaction(async (session) => {
+      return this.processPayment(schoolId, data.feeId, data, session);
+    });
   }
 }

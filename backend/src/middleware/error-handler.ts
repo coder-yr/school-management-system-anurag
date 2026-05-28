@@ -44,5 +44,6 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
         : error;
   }
 
+  console.error("[Global Error Handler] Caught an unhandled error:", error);
   return res.status(500).json(payload);
 };

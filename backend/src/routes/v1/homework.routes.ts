@@ -37,6 +37,12 @@ homeworkRouter.get(
 );
 
 homeworkRouter.post(
+  '/:homeworkId/submissions/:submissionId/grade',
+  requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'),
+  HomeworkController.gradeSubmission
+);
+
+homeworkRouter.post(
   '/materials',
   requireRoles('SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER'),
   upload.single('file'),
