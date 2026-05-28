@@ -64,7 +64,6 @@ export class HomeworkController {
     try {
       const schoolId = req.user?.schoolId as string;
       const teacherId = req.user?.id as string;
-      if (!req.file) throw new Error('No file uploaded');
       const material = await HomeworkService.uploadStudyMaterial(schoolId, teacherId, req.body, req.file);
       sendResponse(res, 201, 'Study material uploaded successfully', material);
     } catch (error) {

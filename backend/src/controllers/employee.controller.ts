@@ -16,7 +16,7 @@ export class EmployeeController {
 
   static async getEmployeeProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId((req.query.schoolId as string) || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const employee = await EmployeeService.getEmployeeProfile(schoolId, id);
       sendResponse(res, 200, 'Employee profile retrieved successfully', employee);
@@ -27,7 +27,7 @@ export class EmployeeController {
 
   static async listEmployees(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId((req.query.schoolId as string) || req.user?.schoolId)).toString();
       const { page, limit, search, isActive, employeeType, department } = req.query as any;
       const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined;
       const result = await EmployeeService.listEmployees(schoolId, {
@@ -46,7 +46,7 @@ export class EmployeeController {
 
   static async updateEmployee(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.body.schoolId || req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId(req.body.schoolId || (req.query.schoolId as string) || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const employee = await EmployeeService.updateEmployee(schoolId, id, req.body);
       sendResponse(res, 200, 'Employee updated successfully', employee);
@@ -79,7 +79,7 @@ export class EmployeeController {
 
   static async reviewLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.body.schoolId || req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId(req.body.schoolId || (req.query.schoolId as string) || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const userId = req.user?.id as string;
       const leave = await EmployeeService.reviewLeave(

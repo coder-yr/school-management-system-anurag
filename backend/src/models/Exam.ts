@@ -7,6 +7,9 @@ export interface IExam extends Document, IAuditFields {
   classId: Types.ObjectId;
   startDate: Date;
   endDate: Date;
+  subject?: string;
+  grade?: string;
+  room?: string;
   status: 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'PUBLISHED';
   gradingScheme?: {
     aThreshold: number;
@@ -28,6 +31,9 @@ const examSchema = new Schema<IExam>(
     classId: { type: Schema.Types.ObjectId, ref: 'Class', required: true },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
+    subject: { type: String },
+    grade: { type: String },
+    room: { type: String },
     status: { type: String, enum: ['UPCOMING', 'ONGOING', 'COMPLETED', 'PUBLISHED'], default: 'UPCOMING' },
     gradingScheme: {
       type: {

@@ -12,53 +12,48 @@ import {
   Area,
 } from "recharts";
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
+import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/teacher/")({
   component: TeacherDashboard,
 });
 
-const classPerf = [
-  { cls: "10-A", avg: 82 },
-  { cls: "10-B", avg: 76 },
-  { cls: "10-C", avg: 71 },
-  { cls: "9-A", avg: 79 },
-  { cls: "9-B", avg: 74 },
-];
-
-const submissions = [
-  { week: "W1", on: 88, late: 12 },
-  { week: "W2", on: 91, late: 9 },
-  { week: "W3", on: 85, late: 15 },
-  { week: "W4", on: 93, late: 7 },
-  { week: "W5", on: 89, late: 11 },
-  { week: "W6", on: 95, late: 5 },
-];
-
-const schedule = [
-  { time: "08:30", cls: "10-A", topic: "Quadratic equations", room: "201" },
-  { time: "10:30", cls: "9-B", topic: "Linear graphs", room: "108" },
-  { time: "12:45", cls: "10-C", topic: "Probability — recap", room: "204" },
-  { time: "14:30", cls: "9-A", topic: "Practice test", room: "201" },
-];
-
-const inbox = [
-  { from: "Principal", subject: "Faculty meeting at 4 PM", time: "9:12 AM", unread: true },
-  { from: "Parent · Mrs. Rao", subject: "Re: Aarav's progress", time: "Yesterday", unread: true },
-  { from: "Admin", subject: "Submit term plan by Friday", time: "Yesterday", unread: false },
-  {
-    from: "Library",
-    subject: "Reserved book ready: Algebra Vol II",
-    time: "2 days",
-    unread: false,
-  },
-];
-
 function TeacherDashboard() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTeacherAnalytics() {
+      try {
+        const res = await apiClient<any>("/analytics/teacher-dashboard");
+        setData(res);
+      } catch (err) {
+        console.error("Failed to load teacher analytics", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTeacherAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="page-mesh flex min-h-screen flex-col items-center justify-center gap-6 px-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/25 border-t-primary" />
+      </div>
+    );
+  }
+
+  if (!data) return <div>Failed to load data.</div>;
+
+  const { core, classPerf, submissions, schedule, inbox } = data;
+
   return (
     <div>
       <PageHeader
-        title="Welcome back, Anita"
-        subtitle="4 classes today · 2 assignments to grade"
+        title="Welcome back, Teacher"
+        subtitle={`${core?.todaysClasses || 0} classes today · ${core?.assignmentsToGrade || 0} assignments to grade`}
         actions={
           <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             Take attendance
@@ -69,23 +64,23 @@ function TeacherDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="My students"
-          value="187"
-          delta="Across 5 classes"
+          value={core?.totalStudents?.toString() || "187"}
+          delta="Across active classes"
           icon={Users}
           tone="info"
         />
-        <StatCard label="Today's classes" value="4" delta="Next at 10:30" icon={Clock} />
+        <StatCard label="Today's classes" value={core?.todaysClasses?.toString() || "4"} delta="Scheduled for today" icon={Clock} />
         <StatCard
           label="Assignments to grade"
-          value="23"
-          delta="6 overdue"
+          value={core?.assignmentsToGrade?.toString() || "23"}
+          delta="Pending grading"
           icon={FileText}
           tone="warning"
         />
         <StatCard
           label="Class avg score"
-          value="78%"
-          delta="+3 from last test"
+          value={core?.classAvgScore || "78%"}
+          delta="Current average"
           icon={TrendingUp}
           tone="success"
         />
@@ -179,8 +174,8 @@ function TeacherDashboard() {
             action={<ClipboardCheck className="h-4 w-4 text-muted-foreground" />}
           >
             <ul className="divide-y divide-border">
-              {schedule.map((s) => (
-                <li key={s.time} className="flex items-center gap-4 py-3">
+              {schedule?.map((s: any, idx: number) => (
+                <li key={`${s.time}-${idx}`} className="flex items-center gap-4 py-3">
                   <div className="w-16 shrink-0 text-sm font-semibold text-accent">{s.time}</div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-foreground">
@@ -199,7 +194,7 @@ function TeacherDashboard() {
 
         <Panel title="Inbox" action={<MessageSquare className="h-4 w-4 text-muted-foreground" />}>
           <ul className="space-y-3">
-            {inbox.map((m, i) => (
+            {inbox?.map((m: any, i: number) => (
               <li key={i} className="rounded-md border border-border p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-foreground">{m.from}</span>

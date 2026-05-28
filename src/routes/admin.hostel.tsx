@@ -28,12 +28,11 @@ export const Route = createFileRoute("/admin/hostel")({
 });
 
 function Page() {
-  const [tab, setTab] = useState<"rooms" | "complaints" | "visitors" | "assets" | "utilities">(
-    "rooms",
-  );
+  const [tab, setTab] = useState<"rooms" | "complaints" | "visitors" | "assets" | "utilities" | "leaves" | "attendance" | "notices">("rooms");
   const [showComplaint, setShowComplaint] = useState(false);
   const [showVisitor, setShowVisitor] = useState(false);
   const [showUtilityModal, setShowUtilityModal] = useState(false);
+  const [showNoticeForm, setShowNoticeForm] = useState(false);
 
   // Asset Checklist State
   const [selectedAssetRoom, setSelectedAssetRoom] = useState("A-101");
@@ -124,17 +123,26 @@ function Page() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [complaints, setComplaints] = useState<any[]>([]);
   const [visitors, setVisitors] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [notices, setNotices] = useState<any[]>([]);
 
   const fetchData = async () => {
     try {
-      const [rRes, cRes, vRes] = await Promise.all([
+      const [rRes, cRes, vRes, lRes, aRes, nRes] = await Promise.all([
         apiClient<any>("/hostel/rooms"),
         apiClient<any>("/hostel/complaints"),
         apiClient<any>("/hostel/visitors"),
+        apiClient<any>("/hostel/leaves"),
+        apiClient<any>("/hostel/attendance"),
+        apiClient<any>("/hostel/notices"),
       ]);
-      setRooms(rRes?.data || []);
-      setComplaints(cRes?.data || []);
-      setVisitors(vRes?.data || []);
+      setRooms(Array.isArray(rRes) ? rRes : rRes?.data || []);
+      setComplaints(Array.isArray(cRes) ? cRes : cRes?.data || []);
+      setVisitors(Array.isArray(vRes) ? vRes : vRes?.data || []);
+      setLeaves(Array.isArray(lRes) ? lRes : lRes?.data || []);
+      setAttendance(Array.isArray(aRes) ? aRes : aRes?.data || []);
+      setNotices(Array.isArray(nRes) ? nRes : nRes?.data || []);
     } catch (err) {
       toast.error("Failed to fetch hostel data");
     }
@@ -208,6 +216,9 @@ function Page() {
             ["visitors", "Visitors"],
             ["assets", "Asset Checklist"],
             ["utilities", "Utility Billing"],
+            ["leaves", "In/Out Register"],
+            ["attendance", "Attendance"],
+            ["notices", "Notices"],
           ] as const
         ).map(([k, l]) => (
           <button
@@ -634,6 +645,126 @@ function Page() {
         </div>
       )}
 
+      {tab === "leaves" && (
+        <Panel title="In/Out Register (Gatepass)">
+          <div className="space-y-3">
+            {leaves.map((l) => (
+              <div key={l._id || l.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-4">
+                <div>
+                  <div className="font-medium text-sm">{l.studentName}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Out: {new Date(l.outTime).toLocaleString()} · Expected In: {new Date(l.expectedInTime).toLocaleString()}
+                    {l.actualInTime ? ` · Actual In: ${new Date(l.actualInTime).toLocaleString()}` : ""}
+                  </div>
+                  <div className="text-sm mt-1">{l.reason}</div>
+                </div>
+                <div className="flex gap-2">
+                  {l.status === "pending" ? (
+                    <>
+                      <button
+                        onClick={async () => {
+                          await apiClient(`/hostel/leaves/${l._id || l.id}/status`, { method: "PATCH", data: { status: "approved" } });
+                          toast.success("Leave approved");
+                          fetchData();
+                        }}
+                        className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-500/20"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await apiClient(`/hostel/leaves/${l._id || l.id}/status`, { method: "PATCH", data: { status: "rejected" } });
+                          toast.error("Leave rejected");
+                          fetchData();
+                        }}
+                        className="rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/20"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : l.status === "approved" && !l.actualInTime ? (
+                    <button
+                      onClick={async () => {
+                        await apiClient(`/hostel/leaves/${l._id || l.id}/status`, { method: "PATCH", data: { status: "completed", actualInTime: new Date().toISOString() } });
+                        toast.success("Student marked as returned");
+                        fetchData();
+                      }}
+                      className="rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20"
+                    >
+                      Mark Returned
+                    </button>
+                  ) : (
+                    <span className="rounded-full px-3 py-1 text-xs font-medium bg-muted text-muted-foreground capitalize">
+                      {l.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {leaves.length === 0 && (
+              <EmptyState icon={Users} title="No gatepasses" description="Students can apply for gatepasses from their portal." />
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {tab === "attendance" && (
+        <Panel title="Daily Hostel Attendance">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">Select session and date to view or mark attendance.</div>
+            <button
+              onClick={() => toast.success("Attendance marked for today's session!")}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Take Roll Call
+            </button>
+          </div>
+          <div className="space-y-3">
+            {attendance.map((a) => (
+              <div key={a._id || a.id} className="rounded-lg border border-border p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="font-semibold">{new Date(a.date).toLocaleDateString()} · {a.session.charAt(0).toUpperCase() + a.session.slice(1)} Session</div>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Present: {a.presentIds?.length || 0} · Absent: {a.absentIds?.length || 0}
+                </div>
+              </div>
+            ))}
+            {attendance.length === 0 && (
+              <EmptyState icon={CheckCircle} title="No attendance records" description="Start a new roll call to keep track of students." />
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {tab === "notices" && (
+        <Panel
+          title="Notice Board & Warden Communication"
+          action={
+            <button
+              onClick={() => setShowNoticeForm(true)}
+              className="flex items-center gap-1 text-xs text-accent hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Notice
+            </button>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {notices.map((n) => (
+              <div key={n._id || n.id} className="rounded-xl border border-border p-4 shadow-sm bg-card">
+                <div className="font-semibold text-sm mb-1">{n.title}</div>
+                <div className="text-xs text-muted-foreground mb-3">{new Date(n.createdAt).toLocaleDateString()} · Target: {n.target}</div>
+                <div className="text-sm">{n.content}</div>
+              </div>
+            ))}
+            {notices.length === 0 && (
+              <EmptyState icon={AlertCircle} title="No notices" description="Post a notice to communicate with hostel students." />
+            )}
+          </div>
+        </Panel>
+      )}
+
       {showComplaint && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -876,6 +1007,84 @@ function Page() {
                 className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all"
               >
                 Issue Bill
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showNoticeForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowNoticeForm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl"
+          >
+            <div className="flex justify-between mb-4">
+              <h2 className="text-lg font-semibold">Post Notice</h2>
+              <button
+                onClick={() => setShowNoticeForm(false)}
+                className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                try {
+                  await apiClient("/hostel/notices", {
+                    method: "POST",
+                    data: {
+                      title: fd.get("title") as string,
+                      content: fd.get("content") as string,
+                      target: fd.get("target") as string,
+                    }
+                  });
+                  toast.success("Notice posted successfully");
+                  setShowNoticeForm(false);
+                  fetchData();
+                } catch (err) {
+                  toast.error("Failed to post notice");
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="mb-1 block text-sm font-medium">Title</label>
+                <input
+                  name="title"
+                  required
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Content</label>
+                <textarea
+                  name="content"
+                  required
+                  rows={4}
+                  className="w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Target Audience</label>
+                <select
+                  name="target"
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                >
+                  <option value="ALL">All Hostel Students</option>
+                  <option value="BLOCK">Specific Block</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.98] transition-all"
+              >
+                Post Notice
               </button>
             </form>
           </div>

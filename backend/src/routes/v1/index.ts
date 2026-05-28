@@ -20,8 +20,21 @@ import { inventoryRoutes as inventoryRouter } from "./inventory.routes.js";
 import { eventsRoutes as eventsRouter } from "./events.routes.js";
 import { admissionsRoutes as admissionsRouter } from "./admissions.routes.js";
 import { visitorsRoutes as visitorsRouter } from "./visitors.routes.js";
+import { analyticsRouter } from "./analytics.routes.js";
+import { syllabusRouter } from "./syllabus.routes.js";
+import { HRController } from "../../controllers/hr.controller.js";
+import { authenticateToken } from "../../middleware/auth.js";
 
 export const v1Router = Router();
+
+const leaveRouter = Router();
+leaveRouter.use(authenticateToken);
+leaveRouter.get("/my", (req, res, next) => {
+  req.query.staffId = req.user?.id;
+  return HRController.getLeaveRequests(req, res, next);
+});
+leaveRouter.post("/", HRController.createLeaveRequest);
+leaveRouter.get("/", HRController.getLeaveRequests);
 
 v1Router.use("/health", healthRouter);
 v1Router.use("/auth", authRouter);
@@ -50,3 +63,6 @@ v1Router.use("/inventory", inventoryRouter);
 v1Router.use("/events", eventsRouter);
 v1Router.use("/admissions", admissionsRouter);
 v1Router.use("/visitors", visitorsRouter);
+v1Router.use("/analytics", analyticsRouter);
+v1Router.use("/leaves", leaveRouter);
+v1Router.use("/syllabus", syllabusRouter);

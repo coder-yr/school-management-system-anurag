@@ -28,6 +28,14 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     }
   }
 
+  if (error.name === "MongoServerError" && error.code === 11000) {
+    return res.status(409).json({
+      success: false,
+      message: "A record with the provided unique field already exists.",
+      details: error.keyValue,
+    });
+  }
+
   const payload: Record<string, unknown> = {
     success: false,
     message: "Internal server error",

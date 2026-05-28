@@ -6,6 +6,9 @@ export const createExamSchema = z.object({
     classId: z.string().min(24),
     startDate: z.string().datetime(),
     endDate: z.string().datetime(),
+    subject: z.string().optional(),
+    grade: z.string().optional(),
+    room: z.string().optional(),
     description: z.string().optional(),
     gradingScheme: z.object({
       aThreshold: z.coerce.number().min(0).max(100).optional(),

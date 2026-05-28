@@ -18,8 +18,8 @@ function Page() {
 
   const loadExams = async () => {
     try {
-      const res = await apiClient<any>("/exams");
-      setExams(res?.data || []);
+      const res = await apiClient<any[]>("/exams");
+      setExams(Array.isArray(res) ? res : res?.data || []);
     } catch {}
   };
 
@@ -76,14 +76,14 @@ function Page() {
               <tbody>
                 {exams.map((e: any) => (
                   <tr key={e._id || e.id} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 pr-4 font-medium">{e.name || e.title}</td>
-                    <td className="py-3 pr-4">{e.subject?.name || e.subject}</td>
-                    <td className="py-3 pr-4">{e.class?.name || e.grade}</td>
-                    <td className="py-3 pr-4">{new Date(e.date || e.examDate).toLocaleDateString()}</td>
+                    <td className="py-3 pr-4 font-medium">{e.name}</td>
+                    <td className="py-3 pr-4">{e.subject || "—"}</td>
+                    <td className="py-3 pr-4">{e.grade || "—"}</td>
+                    <td className="py-3 pr-4">{e.startDate ? new Date(e.startDate).toLocaleDateString() : "—"}</td>
                     <td className="py-3 pr-4 text-muted-foreground">
-                      {e.startTime}–{e.endTime}
+                      {e.startDate ? new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"} – {e.endDate ? new Date(e.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}
                     </td>
-                    <td className="py-3">{e.room || e.venue || "—"}</td>
+                    <td className="py-3">{e.room || "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -94,13 +94,13 @@ function Page() {
               <div key={e._id || e.id} className="rounded-lg border border-border p-3">
                 <div className="flex justify-between mb-1">
                   <span className="font-medium text-sm">
-                    {e.name || e.title} — {e.subject?.name || e.subject}
+                    {e.name} {e.subject ? `— ${e.subject}` : ""}
                   </span>
-                  <span className="text-xs text-muted-foreground">{e.class?.name || e.grade}</span>
+                  <span className="text-xs text-muted-foreground">{e.grade || "—"}</span>
                 </div>
                 <div className="text-xs text-muted-foreground flex items-center gap-2">
                   <Clock className="h-3 w-3" />
-                  {new Date(e.date || e.examDate).toLocaleDateString()} · {e.startTime}–{e.endTime} · {e.room || e.venue || "—"}
+                  {e.startDate ? new Date(e.startDate).toLocaleDateString() : "—"} · {e.startDate ? new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"} – {e.endDate ? new Date(e.endDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"} · {e.room || "—"}
                 </div>
               </div>
             ))}
@@ -148,23 +148,35 @@ function Page() {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 try {
+                  const dateStr = fd.get("date") as string;
+                  const startStr = fd.get("start") as string;
+                  const endStr = fd.get("end") as string;
+
+                  const startDate = dateStr && startStr 
+                    ? new Date(`${dateStr}T${startStr}:00`).toISOString() 
+                    : new Date().toISOString();
+                    
+                  const endDate = dateStr && endStr 
+                    ? new Date(`${dateStr}T${endStr}:00`).toISOString() 
+                    : new Date().toISOString();
+
                   await apiClient("/exams", {
                     method: "POST",
                     data: {
-                      title: fd.get("name") as string,
+                      name: fd.get("name") as string,
+                      classId: "000000000000000000000000", // Placeholder classId since no selection
+                      startDate,
+                      endDate,
                       subject: fd.get("subject") as string,
-                      class: fd.get("grade") as string,
-                      date: fd.get("date") as string,
-                      startTime: fd.get("start") as string,
-                      endTime: fd.get("end") as string,
+                      grade: fd.get("grade") as string,
                       room: fd.get("room") as string,
                     },
                   });
                   toast.success("Exam scheduled");
                   setShowAdd(false);
                   loadExams();
-                } catch {
-                  toast.error("Failed to schedule exam");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to schedule exam");
                 }
               }}
               className="space-y-3"

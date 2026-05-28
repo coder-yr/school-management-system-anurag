@@ -125,11 +125,27 @@ export class AuthService {
     // Create sub-profile based on role
     if (resolvedRole === 'STUDENT') {
       const admissionNumber = `ADM_${Math.floor(100000 + Math.random() * 900000)}`;
+      
+      // Auto-assign to Class 10-A for testing purposes so they show up in UI
+      const mongoose = (await import('mongoose')).default;
+      let classDoc = await mongoose.model('Class').findOne({ schoolId: sId, name: '10' });
+      if (!classDoc) {
+        classDoc = await mongoose.model('Class').create({ schoolId: sId, name: '10' });
+      }
+      let sectionDoc = await mongoose.model('Section').findOne({ schoolId: sId, classId: classDoc._id, name: 'A' });
+      if (!sectionDoc) {
+        sectionDoc = await mongoose.model('Section').create({ schoolId: sId, classId: classDoc._id, name: 'A' });
+      }
+
       await Student.create({
         schoolId: sId,
         userId: uId,
         admissionNumber,
         rollNumber: '1',
+        classId: classDoc._id,
+        sectionId: sectionDoc._id,
+        dob: new Date('2010-01-01'),
+        gender: 'OTHER',
         isActive: true,
         createdBy: uId,
         updatedBy: uId

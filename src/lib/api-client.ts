@@ -61,7 +61,18 @@ export async function apiClient<T>(
   }
 
   if (response.ok) {
-    return responseData?.data !== undefined ? responseData.data : responseData;
+    const data = responseData?.data !== undefined ? responseData.data : responseData;
+    if (data && typeof data === "object") {
+      if (!("data" in data)) {
+        Object.defineProperty(data, "data", {
+          value: data,
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        });
+      }
+    }
+    return data;
   }
 
   if (response.status === 401) {

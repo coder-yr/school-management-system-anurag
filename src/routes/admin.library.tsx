@@ -15,6 +15,14 @@ function Page() {
   const [tab, setTab] = useState<"dashboard" | "books" | "add">("dashboard");
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(1);
+  const [bookForm, setBookForm] = useState({
+    title: "",
+    author: "",
+    isbn: "",
+    category: "Mathematics",
+    copies: 1,
+    shelf: "",
+  });
 
   const [books, setBooks] = useState<any[]>([]);
   const [circulations, setCirculations] = useState<any[]>([]);
@@ -25,8 +33,8 @@ function Page() {
         apiClient<any>("/library/books"),
         apiClient<any>("/library/circulations"),
       ]);
-      setBooks(bRes?.data || []);
-      setCirculations(cRes?.data || []);
+      setBooks(Array.isArray(bRes) ? bRes : bRes?.data || []);
+      setCirculations(Array.isArray(cRes) ? cRes : cRes?.data || []);
     } catch (err) {
       toast.error("Failed to fetch library data");
     }
@@ -211,21 +219,28 @@ function Page() {
                 setStep((s) => s + 1);
                 return;
               }
-              const fd = new FormData(e.currentTarget);
               try {
                 await apiClient("/library/books", {
                   method: "POST",
                   data: {
-                    title: fd.get("title") as string,
-                    author: fd.get("author") as string,
-                    isbn: fd.get("isbn") as string,
-                    category: fd.get("category") as string,
-                    totalCopies: Number(fd.get("copies")),
-                    available: Number(fd.get("copies")),
-                    shelf: fd.get("shelf") as string,
+                    title: bookForm.title,
+                    author: bookForm.author,
+                    isbn: bookForm.isbn,
+                    category: bookForm.category,
+                    totalCopies: bookForm.copies,
+                    available: bookForm.copies,
+                    shelf: bookForm.shelf,
                   }
                 });
                 toast.success("Book added to catalog");
+                setBookForm({
+                  title: "",
+                  author: "",
+                  isbn: "",
+                  category: "Mathematics",
+                  copies: 1,
+                  shelf: "",
+                });
                 setStep(1);
                 setTab("books");
                 fetchData();
@@ -242,6 +257,8 @@ function Page() {
                   <input
                     name="title"
                     required
+                    value={bookForm.title}
+                    onChange={(e) => setBookForm({ ...bookForm, title: e.target.value })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>
@@ -250,6 +267,8 @@ function Page() {
                   <input
                     name="author"
                     required
+                    value={bookForm.author}
+                    onChange={(e) => setBookForm({ ...bookForm, author: e.target.value })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>
@@ -258,6 +277,8 @@ function Page() {
                   <input
                     name="isbn"
                     required
+                    value={bookForm.isbn}
+                    onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>
@@ -269,6 +290,8 @@ function Page() {
                   <label className="mb-1 block text-sm font-medium">Category</label>
                   <select
                     name="category"
+                    value={bookForm.category}
+                    onChange={(e) => setBookForm({ ...bookForm, category: e.target.value })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
                   >
                     <option>Mathematics</option>
@@ -285,7 +308,8 @@ function Page() {
                   <input
                     name="copies"
                     type="number"
-                    defaultValue={1}
+                    value={bookForm.copies}
+                    onChange={(e) => setBookForm({ ...bookForm, copies: Number(e.target.value) })}
                     min={1}
                     required
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
@@ -301,6 +325,8 @@ function Page() {
                     name="shelf"
                     required
                     placeholder="e.g. M-01"
+                    value={bookForm.shelf}
+                    onChange={(e) => setBookForm({ ...bookForm, shelf: e.target.value })}
                     className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                   />
                 </div>

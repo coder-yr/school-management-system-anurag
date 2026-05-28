@@ -15,51 +15,61 @@ import {
 } from "recharts";
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
 import { TrendingUp, Users, GraduationCap, Wallet } from "lucide-react";
+import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/analytics")({
   head: () => ({ meta: [{ title: "Analytics · Campus OS" }] }),
   component: Page,
 });
 
-const gradePerf = [
-  { g: "9-A", avg: 79 },
-  { g: "9-B", avg: 74 },
-  { g: "10-A", avg: 82 },
-  { g: "10-B", avg: 76 },
-  { g: "10-C", avg: 71 },
-];
-const monthly = [
-  { m: "Jan", students: 3200, fees: 18 },
-  { m: "Feb", students: 3250, fees: 22 },
-  { m: "Mar", students: 3300, fees: 28 },
-  { m: "Apr", students: 3380, fees: 35 },
-  { m: "May", students: 3420, fees: 42 },
-  { m: "Jun", students: 3482, fees: 48 },
-];
-const deptDist = [
-  { name: "Teaching", value: 60, color: "oklch(0.55 0.13 255)" },
-  { name: "Admin", value: 20, color: "oklch(0.65 0.15 155)" },
-  { name: "Support", value: 15, color: "oklch(0.75 0.15 75)" },
-  { name: "Other", value: 5, color: "oklch(0.58 0.22 27)" },
-];
-
 function Page() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAnalytics() {
+      try {
+        // apiClient unwraps the "data" from the response object
+        const res = await apiClient<any>("/analytics/dashboard");
+        setData(res);
+      } catch (err) {
+        console.error("Failed to load analytics", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="page-mesh flex min-h-screen flex-col items-center justify-center gap-6 px-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/25 border-t-primary" />
+      </div>
+    );
+  }
+
+  if (!data) return <div>Failed to load data.</div>;
+
+  const { core, gradePerf, monthly, deptDist, keyMetrics } = data;
+
   return (
     <div>
       <PageHeader title="Analytics" subtitle="Campus-wide insights and trends" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard
           label="Enrollment Growth"
-          value="+8.8%"
+          value={core?.enrollmentGrowth || "+8.8%"}
           delta="YoY"
           icon={TrendingUp}
           tone="success"
         />
-        <StatCard label="Avg Attendance" value="91.2%" icon={Users} tone="info" />
-        <StatCard label="Academic Avg" value="78.4%" icon={GraduationCap} />
+        <StatCard label="Avg Attendance" value={core?.avgAttendance || "91.2%"} icon={Users} tone="info" />
+        <StatCard label="Academic Avg" value={core?.academicAvg || "78.4%"} icon={GraduationCap} />
         <StatCard
           label="Fee Collection"
-          value="78%"
+          value={core?.feeCollection || "78%"}
           delta="Of annual target"
           icon={Wallet}
           tone="success"
@@ -172,13 +182,7 @@ function Page() {
         </Panel>
         <Panel title="Key Metrics Summary">
           <div className="space-y-3">
-            {[
-              { label: "Student-Teacher Ratio", value: "14:1", bar: 70 },
-              { label: "Infrastructure Utilization", value: "87%", bar: 87 },
-              { label: "Digital Adoption", value: "92%", bar: 92 },
-              { label: "Parent Satisfaction", value: "4.2/5", bar: 84 },
-              { label: "Placement Rate", value: "96%", bar: 96 },
-            ].map((m) => (
+            {keyMetrics?.map((m: any) => (
               <div key={m.label} className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between text-sm mb-1">

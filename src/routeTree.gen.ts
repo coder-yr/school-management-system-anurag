@@ -46,6 +46,7 @@ import { Route as StudentSyllabusRouteImport } from './routes/student.syllabus'
 import { Route as StudentProfileRouteImport } from './routes/student.profile'
 import { Route as StudentNotificationsRouteImport } from './routes/student.notifications'
 import { Route as StudentMaterialsRouteImport } from './routes/student.materials'
+import { Route as StudentHostelRouteImport } from './routes/student.hostel'
 import { Route as StudentFeesRouteImport } from './routes/student.fees'
 import { Route as StudentFeedRouteImport } from './routes/student.feed'
 import { Route as StudentCalendarRouteImport } from './routes/student.calendar'
@@ -265,6 +266,11 @@ const StudentMaterialsRoute = StudentMaterialsRouteImport.update({
   path: '/materials',
   getParentRoute: () => StudentRoute,
 } as any)
+const StudentHostelRoute = StudentHostelRouteImport.update({
+  id: '/hostel',
+  path: '/hostel',
+  getParentRoute: () => StudentRoute,
+} as any)
 const StudentFeesRoute = StudentFeesRouteImport.update({
   id: '/fees',
   path: '/fees',
@@ -473,6 +479,7 @@ export interface FileRoutesByFullPath {
   '/student/calendar': typeof StudentCalendarRoute
   '/student/feed': typeof StudentFeedRoute
   '/student/fees': typeof StudentFeesRoute
+  '/student/hostel': typeof StudentHostelRoute
   '/student/materials': typeof StudentMaterialsRoute
   '/student/notifications': typeof StudentNotificationsRoute
   '/student/profile': typeof StudentProfileRoute
@@ -540,6 +547,7 @@ export interface FileRoutesByTo {
   '/student/calendar': typeof StudentCalendarRoute
   '/student/feed': typeof StudentFeedRoute
   '/student/fees': typeof StudentFeesRoute
+  '/student/hostel': typeof StudentHostelRoute
   '/student/materials': typeof StudentMaterialsRoute
   '/student/notifications': typeof StudentNotificationsRoute
   '/student/profile': typeof StudentProfileRoute
@@ -613,6 +621,7 @@ export interface FileRoutesById {
   '/student/calendar': typeof StudentCalendarRoute
   '/student/feed': typeof StudentFeedRoute
   '/student/fees': typeof StudentFeesRoute
+  '/student/hostel': typeof StudentHostelRoute
   '/student/materials': typeof StudentMaterialsRoute
   '/student/notifications': typeof StudentNotificationsRoute
   '/student/profile': typeof StudentProfileRoute
@@ -687,6 +696,7 @@ export interface FileRouteTypes {
     | '/student/calendar'
     | '/student/feed'
     | '/student/fees'
+    | '/student/hostel'
     | '/student/materials'
     | '/student/notifications'
     | '/student/profile'
@@ -754,6 +764,7 @@ export interface FileRouteTypes {
     | '/student/calendar'
     | '/student/feed'
     | '/student/fees'
+    | '/student/hostel'
     | '/student/materials'
     | '/student/notifications'
     | '/student/profile'
@@ -826,6 +837,7 @@ export interface FileRouteTypes {
     | '/student/calendar'
     | '/student/feed'
     | '/student/fees'
+    | '/student/hostel'
     | '/student/materials'
     | '/student/notifications'
     | '/student/profile'
@@ -1128,6 +1140,13 @@ declare module '@tanstack/react-router' {
       path: '/materials'
       fullPath: '/student/materials'
       preLoaderRoute: typeof StudentMaterialsRouteImport
+      parentRoute: typeof StudentRoute
+    }
+    '/student/hostel': {
+      id: '/student/hostel'
+      path: '/hostel'
+      fullPath: '/student/hostel'
+      preLoaderRoute: typeof StudentHostelRouteImport
       parentRoute: typeof StudentRoute
     }
     '/student/fees': {
@@ -1446,6 +1465,7 @@ interface StudentRouteChildren {
   StudentCalendarRoute: typeof StudentCalendarRoute
   StudentFeedRoute: typeof StudentFeedRoute
   StudentFeesRoute: typeof StudentFeesRoute
+  StudentHostelRoute: typeof StudentHostelRoute
   StudentMaterialsRoute: typeof StudentMaterialsRoute
   StudentNotificationsRoute: typeof StudentNotificationsRoute
   StudentProfileRoute: typeof StudentProfileRoute
@@ -1462,6 +1482,7 @@ const StudentRouteChildren: StudentRouteChildren = {
   StudentCalendarRoute: StudentCalendarRoute,
   StudentFeedRoute: StudentFeedRoute,
   StudentFeesRoute: StudentFeesRoute,
+  StudentHostelRoute: StudentHostelRoute,
   StudentMaterialsRoute: StudentMaterialsRoute,
   StudentNotificationsRoute: StudentNotificationsRoute,
   StudentProfileRoute: StudentProfileRoute,

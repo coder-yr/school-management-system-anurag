@@ -40,6 +40,7 @@ const groups: NavGroup[] = [
       { to: "/student/timetable", label: "Timetable", icon: CalendarDays },
       { to: "/student/calendar", label: "Calendar & events", icon: CalendarDays },
       { to: "/student/transport", label: "Bus tracking", icon: Bus },
+      { to: "/student/hostel", label: "Hostel", icon: LayoutDashboard },
     ],
   },
   {

@@ -25,6 +25,7 @@ export function validateRequest(schema: ZodTypeAny) {
     });
 
     if (!parsed.success) {
+      console.error("VALIDATION ERROR:", JSON.stringify(parsed.error.flatten(), null, 2));
       next(new ApiError(400, "Request validation failed", parsed.error.flatten()));
       return;
     }

@@ -70,8 +70,8 @@ function Page() {
 
     try {
       const formData = new FormData();
-      formData.append("classId", "1111111111111111111111111");
-      formData.append("subjectId", "2222222222222222222222222");
+      formData.append("className", grade);
+      formData.append("subjectName", subject);
       formData.append("title", title);
       formData.append("description", `${subject} resource for ${grade}`);
       formData.append("category", type === "video" ? "VIDEO" : "NOTES");
@@ -312,7 +312,7 @@ function Page() {
                   {item.uploadDate}
                 </span>
                 <span className="font-medium text-foreground">
-                  By {item.uploadedBy.split(" ")[0]}
+                  By {item.uploadedBy ? item.uploadedBy.split(" ")[0] : "Teacher"}
                 </span>
               </div>
             </div>

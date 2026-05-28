@@ -16,7 +16,7 @@ export class StudentController {
 
   static async getStudentProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId((req.query.schoolId as string) || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.getStudentProfile(schoolId, id);
       sendResponse(res, 200, 'Student profile retrieved successfully', student);
@@ -27,7 +27,7 @@ export class StudentController {
 
   static async listStudents(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId((req.query.schoolId as string) || req.user?.schoolId)).toString();
       const { page, limit, search, isActive, classId, sectionId, tcStatus } = req.query as any;
       const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined;
       const result = await StudentService.listStudents(schoolId, {
@@ -47,7 +47,7 @@ export class StudentController {
 
   static async updateStudent(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (await resolveSchoolId(req.body.schoolId || req.query.schoolId || req.user?.schoolId)).toString();
+      const schoolId = (await resolveSchoolId(req.body.schoolId || (req.query.schoolId as string) || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.updateStudent(schoolId, id, req.body);
       sendResponse(res, 200, 'Student updated successfully', student);
@@ -85,7 +85,7 @@ export class StudentController {
 
   static async listDocuments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-       const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
+       const schoolId = (await resolveSchoolId((req.query.schoolId as string) || req.user?.schoolId)).toString();
        const id = req.params.id as string;
        const docs = await StudentService.listDocuments(schoolId, id);
        sendResponse(res, 200, 'Documents retrieved successfully', docs);

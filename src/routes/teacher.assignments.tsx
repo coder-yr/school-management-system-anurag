@@ -182,8 +182,9 @@ function Page() {
                 try {
                   await createHomeworkAssignment({
                     title: fd.get("title") as string,
-                    subjectId: "2222222222222222222222222",
-                    classId: "1111111111111111111111111",
+                    subjectName: fd.get("subject") as string,
+                    className: fd.get("grade") as string,
+                    sectionName: fd.get("section") as string,
                     description: fd.get("desc") as string,
                     dueDate: fd.get("due") as string,
                     maxScore: Number(fd.get("score")),
@@ -199,7 +200,9 @@ function Page() {
             >
               {[
                 ["title", "Title"],
-                ["subject", "Subject"],
+                ["grade", "Class (e.g., Grade 10)"],
+                ["section", "Section (e.g., A)"],
+                ["subject", "Subject (e.g., Mathematics)"],
                 ["desc", "Description"],
                 ["due", "Due Date", "date"],
                 ["score", "Max Score", "number"],
