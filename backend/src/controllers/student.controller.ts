@@ -1,11 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import { StudentService } from '../services/student.service.js';
 import { sendResponse } from '../utils/response.js';
+import { resolveSchoolId } from '../utils/school.js';
 
 export class StudentController {
   static async admitStudent(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.user?.schoolId)).toString();
       const student = await StudentService.admitStudent(schoolId, req.body);
       sendResponse(res, 201, 'Student admitted successfully', student);
     } catch (error) {
@@ -15,7 +16,7 @@ export class StudentController {
 
   static async getStudentProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.query.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.getStudentProfile(schoolId, id);
       sendResponse(res, 200, 'Student profile retrieved successfully', student);
@@ -26,7 +27,7 @@ export class StudentController {
 
   static async listStudents(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.query.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
       const { page, limit, search, isActive, classId, sectionId, tcStatus } = req.query as any;
       const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined;
       const result = await StudentService.listStudents(schoolId, {
@@ -46,7 +47,7 @@ export class StudentController {
 
   static async updateStudent(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.body.schoolId || req.query.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.query.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.updateStudent(schoolId, id, req.body);
       sendResponse(res, 200, 'Student updated successfully', student);
@@ -57,7 +58,7 @@ export class StudentController {
 
   static async assignClassAndSection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.assignClassAndSection(schoolId, id, req.body.classId, req.body.sectionId);
       sendResponse(res, 200, 'Student class/section updated successfully', student);
@@ -72,7 +73,7 @@ export class StudentController {
         sendResponse(res, 400, 'No file uploaded');
         return;
       }
-      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const documentType = req.body.documentType || 'OTHER';
       const doc = await StudentService.uploadDocument(schoolId, id, documentType, req.file);
@@ -84,7 +85,7 @@ export class StudentController {
 
   static async listDocuments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-       const schoolId = (req.query.schoolId || req.user?.schoolId) as string;
+       const schoolId = (await resolveSchoolId(req.query.schoolId || req.user?.schoolId)).toString();
        const id = req.params.id as string;
        const docs = await StudentService.listDocuments(schoolId, id);
        sendResponse(res, 200, 'Documents retrieved successfully', docs);
@@ -95,7 +96,7 @@ export class StudentController {
 
   static async requestTransferCertificate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.updateStudent(schoolId, id, { tcStatus: 'REQUESTED' });
       sendResponse(res, 200, 'Transfer certificate requested successfully', student);
@@ -106,7 +107,7 @@ export class StudentController {
 
   static async issueTransferCertificate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const schoolId = (req.body.schoolId || req.user?.schoolId) as string;
+      const schoolId = (await resolveSchoolId(req.body.schoolId || req.user?.schoolId)).toString();
       const id = req.params.id as string;
       const student = await StudentService.issueTransferCertificate(schoolId, id, req.body);
       sendResponse(res, 200, 'Transfer certificate issued successfully', student);

@@ -1933,6 +1933,20 @@ function RegisterPage() {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Student Email (Login ID)
+                </label>
+                <input
+                  required
+                  type="email"
+                  placeholder="student@example.com"
+                  value={studentForm.email}
+                  onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                  className="h-10 w-full rounded-lg border border-border bg-card px-3 text-xs outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Date of Birth
                 </label>
                 <input
@@ -2263,6 +2277,20 @@ function RegisterPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Linked School Code
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="SCH-2026-XXXX"
+                  value={parentForm.schoolCode}
+                  onChange={(e) => setParentForm({ ...parentForm, schoolCode: e.target.value })}
+                  className="h-10 w-full rounded-lg border border-border bg-card px-3 text-xs outline-none"
+                />
               </div>
 
               <div className="space-y-1">

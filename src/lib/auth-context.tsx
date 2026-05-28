@@ -12,6 +12,7 @@ import {
   type AppRole,
   type UserProfile,
   isAppRole,
+  ApiError,
 } from "@/lib/api-client";
 import { DEMO_IDS, DEMO_STUDENT_ID } from "@/lib/demo-ids";
 
@@ -163,6 +164,10 @@ async function fetchProfile(): Promise<UserProfile | null> {
     
     return profile;
   } catch (error) {
+    // Silently return null for unauthorized status codes (which is expected if the user isn't logged in yet)
+    if (error instanceof ApiError && error.statusCode === 401) {
+      return null;
+    }
     console.error("Profile fetch failed:", error);
     return null;
   }

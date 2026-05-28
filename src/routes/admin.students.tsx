@@ -22,7 +22,8 @@ function Page() {
     try {
       setLoading(true);
       const res: any = await apiClient("/students");
-      setStudents(res?.data || []);
+      const data = res?.data !== undefined ? res.data : res;
+      setStudents(Array.isArray(data) ? data : []);
     } catch (err) {
       toast.error("Failed to load students");
     } finally {
@@ -260,7 +261,7 @@ function AddStudentModal({
     section: "A",
     rollNumber: "",
     email: "",
-    password: "password123",
+    password: "",
     phone: "",
     guardian: "",
     address: "",
@@ -334,6 +335,7 @@ function AddStudentModal({
           {[
             ["rollNumber", "Roll Number / Admission No", "text"],
             ["email", "Student Email", "email"],
+            ["password", "Password", "password"],
             ["phone", "Emergency Contact", "tel"],
             ["address", "Address", "text"],
             ["dob", "Date of Birth", "date"],

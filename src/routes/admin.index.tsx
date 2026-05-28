@@ -61,10 +61,14 @@ function AdminDashboard() {
     Promise.all([
       apiClient<any>("/students?limit=1"),
       apiClient<any>("/employees?limit=1")
-    ]).then(([studentRes, staffRes]) => {
+    ]).then(([studentsRes, staffRes]) => {
+      const sData: any = studentsRes;
+      const tData: any = staffRes;
+      const parsedStudents = sData?.data !== undefined ? sData.data : sData;
+      const parsedStaff = tData?.data !== undefined ? tData.data : tData;
       setStats({
-        students: studentRes?.total || 0,
-        staff: staffRes?.total || 0
+        students: parsedStudents?.total || 0,
+        staff: parsedStaff?.total || 0
       });
     }).catch(console.error);
   }, []);

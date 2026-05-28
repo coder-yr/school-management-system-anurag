@@ -22,7 +22,8 @@ function Page() {
     try {
       setLoading(true);
       const res: any = await apiClient("/employees");
-      setStaff(res?.data || []);
+      const data = res?.data !== undefined ? res.data : res;
+      setStaff(Array.isArray(data) ? data : []);
     } catch (err) {
       toast.error("Failed to load staff");
     } finally {
@@ -244,7 +245,7 @@ function AddStaffForm({ onClose, onRefresh }: { onClose: () => void; onRefresh: 
                   firstName: fd.get("firstName") as string,
                   lastName: fd.get("lastName") as string,
                   email: fd.get("email") as string,
-                  password: "password123",
+                  password: fd.get("password") as string,
                   role: fd.get("role") as string,
                 }
               }
@@ -272,6 +273,7 @@ function AddStaffForm({ onClose, onRefresh }: { onClose: () => void; onRefresh: 
         </div>
         {[
           ["email", "Email", "email"],
+          ["password", "Password", "password"],
           ["designation", "Designation", "text"],
           ["department", "Department", "text"],
           ["salary", "Salary", "number"],
