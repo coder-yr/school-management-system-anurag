@@ -37,6 +37,7 @@ leaveRouter.get("/my", (req, res, next) => {
 });
 leaveRouter.post("/", HRController.createLeaveRequest);
 leaveRouter.get("/", HRController.getLeaveRequests);
+leaveRouter.patch("/:id", HRController.updateLeaveStatus);
 
 v1Router.use("/health", healthRouter);
 v1Router.use("/auth", authRouter);

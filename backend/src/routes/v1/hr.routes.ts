@@ -10,3 +10,4 @@ hrRouter.use(authenticateToken);
 hrRouter.post('/leaves', HRController.createLeaveRequest);
 hrRouter.get('/leaves', HRController.getLeaveRequests);
 hrRouter.post('/leaves/:id/approve', HRController.approveLeaveRequest);
+hrRouter.patch('/leaves/:id', HRController.updateLeaveStatus);
