@@ -59,8 +59,10 @@ function Page() {
               <div className="space-y-2 text-sm">
                 {[
                   ["Role", user?.role || "Student"],
+                  ["Student Code", user?.studentCode || "—"],
+                  ["School Code", user?.schoolCode || "—"],
                   ["Email", user?.email || "—"],
-                  ["ID", user?.id?.slice(-6) || "—"],
+                  ["System ID", user?.id?.slice(-6) || "—"],
                 ].map(([l, v]) => (
                   <div key={l} className="flex justify-between">
                     <span className="text-muted-foreground">{l}</span>
@@ -77,10 +79,11 @@ function Page() {
               {[
                 ["Full Name", "name", form.name],
                 ["Email", "email", user?.email || "", true],
+                ["Student Code", "studentCode", user?.studentCode || "", true],
                 ["Phone", "phone", form.phone],
+                ["School Code", "schoolCode", user?.schoolCode || "", true],
                 ["Role", "role", user?.role || "", true],
                 ["Address", "address", form.address],
-                ["School", "school", user?.schoolId ? "Enrolled" : "—", true],
               ].map(([label, key, value, disabled]) => (
                 <div key={key as string}>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">

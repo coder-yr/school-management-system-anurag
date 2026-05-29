@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { fetchParentDashboard } from "@/lib/parent-api";
 import {
   ClipboardList,
   CalendarDays,
@@ -18,87 +19,67 @@ export const Route = createFileRoute("/parent/")({
 });
 
 function ParentDashboard() {
-  const [activeChild, setActiveChild] = useState<"aarav" | "ananya">("aarav");
+  const [activeChildKey, setActiveChildKey] = useState<string>("");
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const res = await fetchParentDashboard();
+        setDashboardData(res);
+        if (res.children && Object.keys(res.children).length > 0) {
+          const firstChild = Object.keys(res.children)[0];
+          // Try to sync from localStorage first
+          const stored = localStorage.getItem("parent_active_child");
+          if (stored && res.children[stored]) {
+            setActiveChildKey(stored);
+          } else {
+            setActiveChildKey(firstChild);
+          }
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   // Sync sibling state dynamically
   useEffect(() => {
     const handleSync = () => {
-      const stored = localStorage.getItem("parent_active_child") as "aarav" | "ananya";
-      if (stored) setActiveChild(stored);
+      const stored = localStorage.getItem("parent_active_child");
+      if (stored && dashboardData?.children?.[stored]) {
+        setActiveChildKey(stored);
+      }
     };
-
-    handleSync();
     window.addEventListener("activeChildChanged", handleSync);
     return () => window.removeEventListener("activeChildChanged", handleSync);
-  }, []);
+  }, [dashboardData]);
 
-  const childDetails = {
-    aarav: {
-      name: "Aarav Sharma",
-      grade: "Grade 10 · A",
-      rollNo: "1001",
-      attendance: "92%",
-      avgScore: "83%",
-      feeDue: "₹12,400",
-      busTime: "Arriving in ~ 8 min",
-      nextClass: "Mathematics with Mrs. Iyer · Room 201",
-      todayClasses: [
-        { time: "08:30", subject: "Mathematics", room: "201", teacher: "Mrs. Iyer" },
-        { time: "09:30", subject: "Physics", room: "Lab-2", teacher: "Mr. Rao" },
-        { time: "10:30", subject: "English", room: "108", teacher: "Ms. Singh" },
-        { time: "11:45", subject: "Chemistry", room: "Lab-1", teacher: "Dr. Khan" },
-      ],
-      homeworks: [
-        { subject: "Mathematics", title: "Quadratic Equations — Set 4", due: "Tomorrow" },
-        { subject: "Science", title: "Lab report: Reflection experiment", due: "In 3 days" },
-      ],
-      canteenMenu: {
-        lunch: "Paneer Butter Masala, Roti, Dal Fry, Steamed Rice, Curd",
-        restriction: "Vegetarian · No Peanuts",
-      },
-      healthRecord: {
-        blood: "O+ Pos",
-        allergy: "Peanut allergy",
-        lastVisit: "May 10: Dispensed paracetamol for minor headache. Rested: 20m.",
-      },
-    },
-    ananya: {
-      name: "Ananya Sharma",
-      grade: "Grade 8 · B",
-      rollNo: "8024",
-      attendance: "96%",
-      avgScore: "89%",
-      feeDue: "₹4,200",
-      busTime: "Arriving in ~ 15 min",
-      nextClass: "English Grammar with Ms. Kapoor · Room 104",
-      todayClasses: [
-        { time: "08:30", subject: "English Grammar", room: "104", teacher: "Ms. Kapoor" },
-        { time: "09:30", subject: "History", room: "102", teacher: "Mr. Joshi" },
-        { time: "10:30", subject: "Biology", room: "Bio-Lab", teacher: "Dr. Nair" },
-        { time: "11:45", subject: "Art & Craft", room: "Studio", teacher: "Mrs. Sen" },
-      ],
-      homeworks: [
-        { subject: "English", title: "Composition: My Favourite Historic Hero", due: "Friday" },
-        { subject: "Biology", title: "Diagram of Plant Cell Structure", due: "Monday" },
-      ],
-      canteenMenu: {
-        lunch: "Chole Bhature, Veg Pulav, Boondi Raita, Sweet Lassi",
-        restriction: "Vegetarian · No Restrictions",
-      },
-      healthRecord: {
-        blood: "O+ Pos",
-        allergy: "No known allergies",
-        lastVisit: "April 22: Routine height & weight checkup. Vaccinations up-to-date.",
-      },
-    },
-  };
+  if (isLoading) {
+    return <div className="p-8 text-center text-muted-foreground animate-pulse">Loading dashboard...</div>;
+  }
 
-  const child = childDetails[activeChild];
+  if (error || !dashboardData) {
+    return <div className="p-8 text-center text-destructive">Error: {error || "Failed to load dashboard"}</div>;
+  }
+
+  const childDetails = dashboardData.children || {};
+  const child = childDetails[activeChildKey];
+
+  if (!child) {
+    return <div className="p-8 text-center text-muted-foreground">No students assigned to your profile. Please contact administration.</div>;
+  }
 
   return (
     <div>
       <PageHeader
-        title={`Welcome Back, Ramesh 👋`}
+        title={`Welcome Back, ${dashboardData.parentName} 👋`}
         subtitle={`Parent Overview · Active child: ${child.name}`}
       />
 

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ModuleShell, type NavGroup } from "@/components/module-shell";
 import { useAuth, getRolePath } from "@/lib/auth-context";
+import { fetchParentDashboard } from "@/lib/parent-api";
 
 const groups: NavGroup[] = [
   {
@@ -43,7 +44,35 @@ export const Route = createFileRoute("/parent")({
 function ParentLayout() {
   const { isAuthenticated, user, authLoading } = useAuth();
   const navigate = useNavigate();
-  const [activeChild, setActiveChild] = useState<"aarav" | "ananya">("aarav");
+  const [activeChild, setActiveChild] = useState<string>("");
+  const [childrenList, setChildrenList] = useState<{key: string, name: string, className: string}[]>([]);
+
+  useEffect(() => {
+    async function loadChildren() {
+      try {
+        const res = await fetchParentDashboard();
+        if (res.children && Object.keys(res.children).length > 0) {
+          const list = Object.keys(res.children).map(key => ({
+            key,
+            name: res.children[key].name,
+            className: res.children[key].className || ""
+          }));
+          setChildrenList(list);
+          const stored = localStorage.getItem("parent_active_child");
+          if (stored && res.children[stored]) {
+            setActiveChild(stored);
+          } else {
+            setActiveChild(list[0].key);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load children in layout", err);
+      }
+    }
+    if (isAuthenticated && user?.role === "parent") {
+      loadChildren();
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -82,28 +111,23 @@ function ParentLayout() {
           <span>Linked Sibling Profiles:</span>
         </div>
         <div className="flex gap-1.5 bg-muted p-0.5 rounded-lg border border-border">
-          <button
-            onClick={() => setActiveChild("aarav")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-              activeChild === "aarav"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <User className="h-3 w-3" />
-            Aarav Sharma (Gr 10-A)
-          </button>
-          <button
-            onClick={() => setActiveChild("ananya")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-              activeChild === "ananya"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <User className="h-3 w-3" />
-            Ananya Sharma (Gr 8-B)
-          </button>
+          {childrenList.map((child) => (
+            <button
+              key={child.key}
+              onClick={() => setActiveChild(child.key)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                activeChild === child.key
+                  ? "bg-primary text-primary-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <User className="h-3 w-3" />
+              {child.name} {child.className ? `(${child.className})` : ""}
+            </button>
+          ))}
+          {childrenList.length === 0 && (
+            <span className="px-3 py-1 text-xs text-muted-foreground">No students linked</span>
+          )}
         </div>
       </div>
 

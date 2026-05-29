@@ -22,6 +22,8 @@ import { admissionsRoutes as admissionsRouter } from "./admissions.routes.js";
 import { visitorsRoutes as visitorsRouter } from "./visitors.routes.js";
 import { analyticsRouter } from "./analytics.routes.js";
 import { syllabusRouter } from "./syllabus.routes.js";
+import { sportsRouter } from "./sports.routes.js";
+import { parentRouter } from "./parent.routes.js";
 import { HRController } from "../../controllers/hr.controller.js";
 import { authenticateToken } from "../../middleware/auth.js";
 
@@ -66,3 +68,5 @@ v1Router.use("/visitors", visitorsRouter);
 v1Router.use("/analytics", analyticsRouter);
 v1Router.use("/leaves", leaveRouter);
 v1Router.use("/syllabus", syllabusRouter);
+v1Router.use("/sports", sportsRouter);
+v1Router.use("/parents", parentRouter);

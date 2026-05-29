@@ -541,6 +541,7 @@ function RegisterPage() {
             lastName: parentForm.motherName || "Name",
             role: "PARENT",
             schoolCode: parentForm.schoolCode,
+            childrenCodes: parentForm.childrenCodes,
           },
         });
 

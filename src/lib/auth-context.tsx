@@ -14,6 +14,8 @@ import {
   isAppRole,
   ApiError,
 } from "@/lib/api-client";
+
+// Extending the generic UserProfile here if needed or we can just rely on the any mapping.
 import { DEMO_IDS, DEMO_STUDENT_ID } from "@/lib/demo-ids";
 
 export type UserRole = AppRole;
@@ -26,6 +28,8 @@ export interface AuthUser {
   initials: string;
   sub: string;
   avatar?: string;
+  schoolCode?: string;
+  studentCode?: string;
 }
 
 interface AuthContextValue {
@@ -142,6 +146,8 @@ function profileToAuthUser(profile: UserProfile): AuthUser {
     initials: initialsFromName(name),
     sub: profile.subtitle?.trim() || roleSubtitle(profile.role),
     avatar: profile.avatar_url ?? undefined,
+    schoolCode: (profile as any).schoolCode,
+    studentCode: (profile as any).studentCode,
   };
 }
 
@@ -160,6 +166,8 @@ async function fetchProfile(): Promise<UserProfile | null> {
       avatar_url: response.profilePicture,
       subtitle: roleSubtitle(response.role.toLowerCase() as AppRole),
       created_at: response.createdAt,
+      schoolCode: response.schoolCode,
+      studentCode: response.studentCode,
     };
     
     return profile;
@@ -275,6 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar_url: response.profilePicture,
           subtitle: roleSubtitle(response.role.toLowerCase() as AppRole),
           created_at: response.createdAt,
+          schoolCode: response.schoolCode,
+          studentCode: response.studentCode,
         };
 
         const authUser = profileToAuthUser(profile);

@@ -18,6 +18,7 @@ export interface RegisterInput {
   schoolId?: string;
   schoolName?: string;
   schoolCode?: string;
+  childrenCodes?: string[];
 }
 
 export interface LoginInput {
@@ -34,6 +35,8 @@ export interface PublicUser {
   lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  schoolCode?: string;
+  studentCode?: string;
 }
 
 function toPublicUser(user: IUser): PublicUser {
@@ -151,13 +154,24 @@ export class AuthService {
         updatedBy: uId
       });
     } else if (resolvedRole === 'PARENT') {
-      await Parent.create({
+      const parent = await Parent.create({
         schoolId: sId,
         userId: uId,
         contactPrimary: '9999999999',
         createdBy: uId,
         updatedBy: uId
       });
+
+      if (input.childrenCodes && input.childrenCodes.length > 0) {
+        for (const childCode of input.childrenCodes) {
+          if (childCode.trim()) {
+            await Student.updateMany(
+              { schoolId: sId, $or: [{ admissionNumber: childCode.trim() }, { rollNumber: childCode.trim() }] },
+              { $addToSet: { parentIds: parent._id } }
+            );
+          }
+        }
+      }
     } else if (resolvedRole === 'TEACHER' || resolvedRole === 'DRIVER' || resolvedRole === 'ACCOUNTANT') {
       const employeeId = `EMP_${uId.toString().slice(-6).toUpperCase()}`;
       await Employee.create({
@@ -256,13 +270,25 @@ export class AuthService {
   }
 
   async getProfile(userId: string): Promise<PublicUser> {
-    const user = (await User.findById(userId)) as (IUser & Document) | null;
+    const user = (await User.findById(userId).populate('schoolId')) as any;
 
     if (!user) {
       throw new ApiError(404, "Authenticated user not found");
     }
 
-    return toPublicUser(user);
+    const publicUser = toPublicUser(user);
+    if (user.schoolId && user.schoolId.code) {
+      publicUser.schoolCode = user.schoolId.code;
+    }
+
+    if (user.role === 'STUDENT') {
+      const student = await Student.findOne({ userId });
+      if (student) {
+        publicUser.studentCode = student.admissionNumber || student.rollNumber;
+      }
+    }
+
+    return publicUser;
   }
 
   async forgotPassword(email: string): Promise<{ message: string; resetToken?: string }> {

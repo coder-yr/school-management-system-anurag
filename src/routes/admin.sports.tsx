@@ -14,6 +14,13 @@ import {
 } from "lucide-react";
 import { PageHeader, Panel, StatCard } from "@/components/module-shell";
 
+import { useEffect } from "react";
+import { fetchSportsTeams, fetchTournaments, fetchActivities, createTeam, createTournament } from "@/lib/sports-api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 export const Route = createFileRoute("/admin/sports")({
   head: () => ({ meta: [{ title: "Sports & Extracurriculars · Campus OS" }] }),
   component: SportsPage,
@@ -21,56 +28,66 @@ export const Route = createFileRoute("/admin/sports")({
 
 function SportsPage() {
   const [tab, setTab] = useState<"teams" | "tournaments" | "enrollment">("teams");
+  
+  const [teams, setTeams] = useState<any[]>([]);
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const teams = [
-    {
-      id: "t1",
-      name: "Varsity Basketball",
-      coach: "Mr. Sharma",
-      members: 15,
-      nextMatch: "vs St. Jude (Tomorrow)",
-      status: "Active",
-    },
-    {
-      id: "t2",
-      name: "Junior Soccer (U-14)",
-      coach: "Mr. D'Souza",
-      members: 22,
-      nextMatch: "vs City High (May 30)",
-      status: "Active",
-    },
-    {
-      id: "t3",
-      name: "Track & Field",
-      coach: "Ms. Iyer",
-      members: 30,
-      nextMatch: "State Qualifiers (June 5)",
-      status: "Training",
-    },
-  ];
+  async function handleAddMatch(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    const data = {
+      name: fd.get("name"),
+      date: fd.get("date"),
+      location: fd.get("location"),
+      teams: Number(fd.get("teams")),
+    };
+    try {
+      await createTournament(data);
+      toast.success("Match scheduled successfully");
+      setIsMatchModalOpen(false);
+      const newMatches = await fetchTournaments();
+      setTournaments(newMatches);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to schedule match");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
-  const tournaments = [
-    {
-      id: "tm1",
-      name: "Inter-School Basketball Cup",
-      date: "May 27 - May 29",
-      teams: 8,
-      location: "Main Campus Indoor Court",
-    },
-    {
-      id: "tm2",
-      name: "City High Soccer League",
-      date: "May 30 - June 15",
-      teams: 12,
-      location: "City Sports Complex",
-    },
-  ];
+  async function handleAddTeam(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const fd = new FormData(e.currentTarget);
+    const data = {
+      name: fd.get("name"),
+      coach: fd.get("coach"),
+      members: Number(fd.get("members")),
+      status: fd.get("status"),
+      nextMatch: fd.get("nextMatch") || "TBD"
+    };
+    try {
+      await createTeam(data);
+      toast.success("Team added successfully");
+      setIsTeamModalOpen(false);
+      const newTeams = await fetchSportsTeams();
+      setTeams(newTeams);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add team");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
-  const activities = [
-    { id: "a1", name: "Debate Club", instructor: "Mrs. Gupta", enrolled: 45, max: 50 },
-    { id: "a2", name: "Robotics & AI", instructor: "Mr. Nair", enrolled: 30, max: 30 },
-    { id: "a3", name: "Classical Music", instructor: "Ms. Pandit", enrolled: 18, max: 25 },
-  ];
+  useEffect(() => {
+    fetchSportsTeams().then(setTeams).catch(console.error);
+    fetchTournaments().then(setTournaments).catch(console.error);
+    fetchActivities().then(setActivities).catch(console.error);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -119,7 +136,7 @@ function SportsPage() {
         <Panel
           title="Sports Teams & Coach Assignments"
           action={
-            <button className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline">
+            <button onClick={() => setIsTeamModalOpen(true)} className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline">
               <Plus className="h-3.5 w-3.5" /> New Team
             </button>
           }
@@ -127,7 +144,7 @@ function SportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {teams.map((team) => (
               <div
-                key={team.id}
+                key={team._id}
                 className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-4 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between">
@@ -165,7 +182,7 @@ function SportsPage() {
         <Panel
           title="Tournament & Match Calendar"
           action={
-            <button className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline">
+            <button onClick={() => setIsMatchModalOpen(true)} className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline">
               <Plus className="h-3.5 w-3.5" /> Schedule Match
             </button>
           }
@@ -173,7 +190,7 @@ function SportsPage() {
           <div className="space-y-4">
             {tournaments.map((t) => (
               <div
-                key={t.id}
+                key={t._id}
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border bg-card shadow-sm gap-4 hover:border-accent transition-colors"
               >
                 <div className="flex items-start gap-4">
@@ -208,7 +225,7 @@ function SportsPage() {
             {activities.map((a) => {
               const isFull = a.enrolled >= a.max;
               return (
-                <div key={a.id} className="p-4 rounded-xl border border-border bg-card shadow-sm">
+                <div key={a._id} className="p-4 rounded-xl border border-border bg-card shadow-sm">
                   <h4 className="font-bold text-foreground mb-1">{a.name}</h4>
                   <p className="text-xs text-muted-foreground mb-4">Instructor: {a.instructor}</p>
 
@@ -239,6 +256,85 @@ function SportsPage() {
           </div>
         </Panel>
       )}
+
+      <Dialog open={isTeamModalOpen} onOpenChange={setIsTeamModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Team</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddTeam} className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label htmlFor="name">Team Name</Label>
+              <Input id="name" name="name" required placeholder="e.g. Varsity Basketball" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="coach">Coach Name</Label>
+              <Input id="coach" name="coach" required placeholder="e.g. John Doe" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="members">Members Count</Label>
+                <Input id="members" name="members" type="number" min="1" required placeholder="15" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <select id="status" name="status" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nextMatch">Next Match (Optional)</Label>
+              <Input id="nextMatch" name="nextMatch" placeholder="e.g. vs Oakridge High - Oct 12" />
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" onClick={() => setIsTeamModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Team"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isMatchModalOpen} onOpenChange={setIsMatchModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule Match</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddMatch} className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label htmlFor="name">Tournament / Match Name</Label>
+              <Input id="match-name" name="name" required placeholder="e.g. Inter-school Basketball Finals" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date">Date & Time</Label>
+              <Input id="date" name="date" required placeholder="e.g. Oct 15, 2024 at 10:00 AM" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <Input id="location" name="location" required placeholder="Main Stadium" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="teams">Number of Teams</Label>
+                <Input id="teams" name="teams" type="number" min="2" required placeholder="2" />
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" onClick={() => setIsMatchModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Scheduling..." : "Schedule Match"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
